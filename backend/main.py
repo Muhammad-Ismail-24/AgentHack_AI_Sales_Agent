@@ -103,7 +103,7 @@ app = FastAPI(
         "Ingests a company profile, finds and researches matching leads, scores "
         "them, writes and sends outreach, classifies replies, and books meetings."
     ),
-    version="1.1.0",
+    version="1.2.0",
     lifespan=lifespan,
 )
 

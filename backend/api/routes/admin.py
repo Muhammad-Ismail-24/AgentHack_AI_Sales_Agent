@@ -2,13 +2,15 @@
 
 POST /admin/cleanup-orphans — delete child documents whose parent no longer
 exists: emails/meetings/followups/pipeline_events pointing at a missing
-lead, and replies pointing at a missing email.
+lead, and replies pointing at a missing email. Safe by construction: it can
+only remove dangling references, never a document whose parent is alive,
+and repeat calls are no-ops.
 
-Deliberately unauthenticated but safe by construction: it can only remove
-dangling references (the "Unknown company" junk left behind by test runs),
-never a document whose parent is alive. Repeated calls are no-ops. The
-full destructive wipe stays where it always was — load_seeds.py, which
-needs direct Firestore credentials, not an HTTP call.
+POST /admin/reseed — wipe every collection and reload data/seeds/*.json.
+**Destructive**, and the only way to reset the demo when the Firebase key
+lives on a host with no shell. It reuses load_seeds.py rather than
+reimplementing the loading rules, so there is one source of truth for what
+the demo data is.
 """
 
 import asyncio
@@ -65,3 +67,54 @@ async def cleanup_orphans() -> CleanupResponse:
     total = sum(deleted.values())
     log.warning("orphan cleanup removed %s documents: %s", total, deleted)
     return CleanupResponse(deleted=deleted, remaining=remaining)
+
+
+class ReseedResponse(BaseModel):
+    reseeded: bool = True
+    loaded: dict[str, int]
+    remaining: dict[str, int]
+    session_id: str
+
+
+def _reseed() -> tuple[dict[str, int], dict[str, int], str]:
+    """Wipe and reload the demo seeds. Synchronous — runs in a thread."""
+    import load_seeds
+
+    leads = load_seeds._read("leads_seed.json")
+    if not leads:
+        raise FileNotFoundError("data/seeds/leads_seed.json is missing")
+
+    crud.clear_all()
+
+    lead_count, contact_count = load_seeds.load_leads(leads)
+    emails = load_seeds._read("emails_seed.json")
+    replies = load_seeds._read("replies_seed.json")
+    meetings = load_seeds._read("meetings_seed.json")
+
+    loaded = {
+        "leads": lead_count,
+        "contacts": contact_count,
+        "emails": load_seeds.load_emails(emails) if emails else 0,
+        "replies": load_seeds.load_replies(replies) if replies else 0,
+        "meetings": load_seeds.load_meetings(meetings) if meetings else 0,
+    }
+
+    client = fs.get_client()
+    remaining = {
+        collection: sum(1 for _ in client.collection(collection).stream())
+        for collection in fs.ALL_COLLECTIONS
+    }
+    return loaded, remaining, load_seeds.SESSION_ID
+
+
+@router.post("/reseed", response_model=ReseedResponse)
+async def reseed() -> ReseedResponse:
+    """Wipe every collection and reload the demo seed data.
+
+    Destructive: anything not in data/seeds/ is gone, including the output
+    of real pipeline runs. That is the point — it restores a known-good
+    demo state and clears whatever test runs left behind.
+    """
+    loaded, remaining, session_id = await asyncio.to_thread(_reseed)
+    log.warning("reseeded demo data: %s", loaded)
+    return ReseedResponse(loaded=loaded, remaining=remaining, session_id=session_id)
