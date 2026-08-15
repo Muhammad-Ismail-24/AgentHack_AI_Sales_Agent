@@ -41,3 +41,7 @@ env
 *serviceAccount*.json
 firebase-key*.json
 firebase-service-account.json
+
+# TS build artefact
+*.tsbuildinfo
+.vite/
