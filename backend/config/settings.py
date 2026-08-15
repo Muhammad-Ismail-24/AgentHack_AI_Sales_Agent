@@ -104,11 +104,18 @@ class Settings(BaseSettings):
     CALCOM_API_KEY: str = ""
     CALENDAR_BASE_URL: str = "https://cal.com/admin"
 
-    # ── WhatsApp (Twilio) — skipped for now, kept so keys validate ────
+    # ── WhatsApp: Green API is the active path ────────────────────────
+    # Simple REST API — {GREEN_API_URL}/waInstance{id}/sendMessage/{token}.
+    # No SDK, just POSTs. See comms/whatsapp_notifier.py.
+    GREEN_API_URL: str = "https://api.greenapi.com"
+    GREEN_API_ID_INSTANCE: str = ""
+    GREEN_API_TOKEN_INSTANCE: str = ""
+    ADMIN_WHATSAPP_NUMBER: str = ""
+
+    # ── WhatsApp (Twilio) — legacy fallback, skipped unless configured ─
     TWILIO_ACCOUNT_SID: str = ""
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""
-    ADMIN_WHATSAPP_NUMBER: str = ""
 
     # ── RAG tuning (Ismail) ──────────────────────────────────────────
     CHUNK_SIZE: int = 800

@@ -19,7 +19,7 @@ want an empty database rather than the reseeded demo state.
 
 import asyncio
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db import crud, firestore as fs
@@ -73,6 +73,10 @@ async def cleanup_orphans() -> CleanupResponse:
     return CleanupResponse(deleted=deleted, remaining=remaining)
 
 
+class SeedsUnavailable(RuntimeError):
+    """Raised when the demo seed data is not present in this checkout."""
+
+
 class ReseedResponse(BaseModel):
     reseeded: bool = True
     loaded: dict[str, int]
@@ -82,11 +86,18 @@ class ReseedResponse(BaseModel):
 
 def _reseed() -> tuple[dict[str, int], dict[str, int], str]:
     """Wipe and reload the demo seeds. Synchronous — runs in a thread."""
-    import load_seeds
+    try:
+        import load_seeds
+    except ModuleNotFoundError as exc:  # backend/load_seeds.py was removed
+        raise SeedsUnavailable(
+            "Demo seed data is no longer part of this repo — backend/load_seeds.py "
+            "and data/seeds/ were removed. Use POST /admin/wipe for an empty "
+            "database, then run the pipeline to populate it for real."
+        ) from exc
 
     leads = load_seeds._read("leads_seed.json")
     if not leads:
-        raise FileNotFoundError("data/seeds/leads_seed.json is missing")
+        raise SeedsUnavailable("data/seeds/leads_seed.json is missing")
 
     crud.clear_all()
 
@@ -118,8 +129,15 @@ async def reseed() -> ReseedResponse:
     Destructive: anything not in data/seeds/ is gone, including the output
     of real pipeline runs. That is the point — it restores a known-good
     demo state and clears whatever test runs left behind.
+
+    Returns 409 (not 500) when the seed data has been removed from the repo,
+    so the caller gets a usable message instead of a stack trace.
     """
-    loaded, remaining, session_id = await asyncio.to_thread(_reseed)
+    try:
+        loaded, remaining, session_id = await asyncio.to_thread(_reseed)
+    except SeedsUnavailable as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
     log.warning("reseeded demo data: %s", loaded)
     return ReseedResponse(loaded=loaded, remaining=remaining, session_id=session_id)
 

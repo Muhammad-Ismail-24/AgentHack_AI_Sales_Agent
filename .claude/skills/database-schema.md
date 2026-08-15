@@ -32,7 +32,13 @@ anything that looks like one is done in Python in `db/crud.py`.
 
 ## contacts
 
-id · lead_id · name · role · email · linkedin_url · is_primary (bool) · created_at
+id · lead_id · name · role · email · phone · linkedin_url · is_primary (bool) ·
+created_at
+
+`phone` (added for the WhatsApp extra-credit feature): when set,
+`comms/meeting_manager.py` also messages the contact directly via Green API
+on meeting confirmation. `None` unless explicitly set — no enrichment agent
+populates it yet.
 
 ## emails
 

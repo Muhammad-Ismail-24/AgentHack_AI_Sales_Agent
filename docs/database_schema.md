@@ -35,7 +35,15 @@ anything that looks like one is done in Python in `db/crud.py`.
 
 ## contacts
 
-id · lead_id · name · role · email · linkedin_url · is_primary (bool) · created_at
+id · lead_id · name · role · email · phone · linkedin_url · is_primary (bool) ·
+created_at
+
+`phone`, when present, is used for the WhatsApp extra-credit feature
+(`comms/meeting_manager.py` messages the contact directly via Green API when
+a meeting is confirmed). Loosely formatted input is fine — digits are
+extracted and the rest discarded when building the WhatsApp chat id. `None`
+when unset; nothing currently populates it automatically (no enrichment
+agent writes it yet), so it's opt-in per contact until one does.
 
 ## emails
 

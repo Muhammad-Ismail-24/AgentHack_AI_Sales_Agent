@@ -63,7 +63,7 @@ LEAD_FIELDS = {
     "pitch_angle", "icp_fit", "research_summary", "apollo_data", "session_id",
 }
 
-CONTACT_FIELDS = {"name", "role", "email", "linkedin_url", "is_primary"}
+CONTACT_FIELDS = {"name", "role", "email", "linkedin_url", "is_primary", "phone"}
 
 
 def lead_doc(data: dict[str, Any], doc_id: str | None = None) -> dict[str, Any]:
@@ -97,6 +97,7 @@ def contact_doc(
         "name": data.get("name"),
         "role": data.get("role"),
         "email": data.get("email"),
+        "phone": data.get("phone"),
         "linkedin_url": data.get("linkedin_url"),
         "is_primary": bool(data.get("is_primary", False)),
         "created_at": data.get("created_at") or now(),
