@@ -1,4 +1,4 @@
-"""Cal.com-style booking link generator used by email_writer_agent."""
+"""Cal.com-style booking link generator used by combined_processing_agent."""
 
 import re
 

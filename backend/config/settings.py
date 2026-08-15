@@ -49,8 +49,9 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODEL: str = "gemini-flash-latest"
     GEMINI_MAX_TOKENS: int = 4096
     # Free-tier budget is 15 requests/minute across everything sharing the
-    # key. The limiter in agents/llm_utils.py holds calls to this many per
-    # rolling 60s (14 leaves one request of headroom). Raise on a paid tier.
+    # key. agents/llm_utils.py throttles every Gemini call (agents and the
+    # comms layer alike) through a shared TokenBucket sized to this many
+    # tokens/min (14 leaves one request of headroom). Raise on a paid tier.
     GEMINI_RPM: int = 14
     # How many times a single call waits out a 429 before giving up with
     # GeminiQuotaExhausted (0 = fail on the first 429).
@@ -63,10 +64,17 @@ class Settings(BaseSettings):
     # ── Web search / research ────────────────────────────────────────
     TAVILY_API_KEY: str = ""
     SERPER_API_KEY: str = ""
+    # Conservative placeholder — not verified against Tavily's actual plan
+    # limits. Adjust to match your account tier.
+    TAVILY_RPM: int = 60
 
     # ── Contact enrichment ───────────────────────────────────────────
     APOLLO_API_KEY: str = ""
     HUNTER_API_KEY: str = ""
+    # Conservative placeholders — not verified against Apollo's/Hunter's
+    # actual plan limits. Adjust to match your account tier.
+    APOLLO_RPM: int = 50
+    HUNTER_RPM: int = 60
 
     # ── Vector store ─────────────────────────────────────────────────
     QDRANT_URL: str = "http://localhost:6333"
@@ -96,6 +104,9 @@ class Settings(BaseSettings):
     # Resend is kept as an optional alternative sender.
     RESEND_API_KEY: str = ""
     SENDER_EMAIL: str = ""
+    # Conservative placeholder — not verified against Resend's actual plan
+    # limits. Adjust to match your account tier.
+    RESEND_RPM: int = 60
 
     # ── Meetings ─────────────────────────────────────────────────────
     # CAL_API_KEY is the name in the env file; CALCOM_API_KEY is the older
@@ -111,6 +122,7 @@ class Settings(BaseSettings):
     GREEN_API_ID_INSTANCE: str = ""
     GREEN_API_TOKEN_INSTANCE: str = ""
     ADMIN_WHATSAPP_NUMBER: str = ""
+    GREEN_API_RPM: int = 15
 
     # ── WhatsApp (Twilio) — legacy fallback, skipped unless configured ─
     TWILIO_ACCOUNT_SID: str = ""
@@ -123,11 +135,12 @@ class Settings(BaseSettings):
     RETRIEVER_TOP_K: int = 5
 
     # ── Pipeline tuning (Ismail) ─────────────────────────────────────
-    # Each researched lead costs 1 LLM call in each of qualification,
-    # service_match, decision_makers, and email_writer — 4 calls/lead. Kept
-    # at 1 so a full pipeline run (icp + 1 batched filter call + 4 more)
-    # stays under 10 total calls, comfortably inside a 15 RPM budget. Raise
-    # this once quota headroom is confirmed.
+    # combined_processing_agent scores, service-matches, picks a decision
+    # maker, and writes the email for every researched lead in one batched
+    # LLM call (falling back to per-lead calls only for whatever a truncated
+    # batch response didn't cover) — so this no longer needs to be kept tiny
+    # to protect the 15 RPM Gemini budget. It still bounds the real per-lead
+    # work in research_agent (scraping, Apollo, Tavily), which isn't free.
     MAX_LEADS_TO_RESEARCH: int = 6
     MIN_QUALIFICATION_SCORE: int = 40
     SENDER_COMPANY_NAME: str = "NovaTech Solutions"

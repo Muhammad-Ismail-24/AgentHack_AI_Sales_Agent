@@ -66,7 +66,7 @@ class EmailReader:
             )
             return {"matched": False, "classification": None, "next_action": None}
 
-        crud.create_reply(
+        reply = crud.create_reply(
             email_id=original_email["id"],
             raw_body=body,
             received_at=_parse_timestamp(timestamp),
@@ -83,6 +83,13 @@ class EmailReader:
         )
         classification = classification_result["classification"]
         next_action = await self._classifier.decide_next_action(classification, original_email["lead_id"])
+
+        crud.update_reply_classification(
+            reply["id"],
+            classification=classification,
+            summary=classification_result.get("summary"),
+            next_action=next_action,
+        )
 
         if next_action == "send_meeting_link":
             await MeetingManager().handle_meeting_request(original_email["lead_id"])

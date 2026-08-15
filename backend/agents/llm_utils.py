@@ -9,25 +9,24 @@ LLM provider: Google Gemini, via langchain-google-genai.
 
 Rate limiting: the free-tier Gemini key allows 15 requests/minute, shared by
 every agent AND the comms classifier/follow-up/briefing calls — all of which
-funnel through call_llm_raw() below. A sliding-window limiter here holds each
-call until a slot is free (GEMINI_RPM, default 14 for headroom), so no matter
-how many agents or concurrent runs want the model, the key never exceeds its
-budget. A 429 that still slips through (another process on the same key,
-daily cap) waits out the server-suggested delay once, then raises
+funnel through call_llm_raw() below. A module-level TokenBucket (GEMINI_RPM,
+default 14 for headroom) throttles every call before it's sent, so no matter
+how many agents or concurrent pipeline runs want the model, the key never
+exceeds its budget. A 429 that still slips through (another process on the
+same key, daily cap) waits out the server-suggested delay once, then raises
 GeminiQuotaExhausted rather than burning further requests on retries.
 """
 
 import asyncio
 import json
 import re
-import time
-from collections import deque
 
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from config.settings import settings
 from utils.logger import logger
+from utils.rate_limiter import TokenBucket
 
 
 class GeminiQuotaExhausted(RuntimeError):
@@ -41,36 +40,10 @@ class GeminiQuotaExhausted(RuntimeError):
 _llm: ChatGoogleGenerativeAI | None = None
 _model_name: str | None = None
 
-# ── Sliding-window RPM limiter ───────────────────────────────────────
-# Timestamps of the last requests, oldest first. Guarded by _limiter_lock;
-# a waiter holds the lock while sleeping, which also serialises bursts so
-# concurrent agents queue fairly instead of stampeding the window.
-_call_times: deque[float] = deque()
-_limiter_lock = asyncio.Lock()
-_WINDOW_SECONDS = 60.0
+_gemini_bucket = TokenBucket(settings.GEMINI_RPM)
 
 
-async def _acquire_slot() -> None:
-    """Block until sending one more request keeps us inside GEMINI_RPM."""
-    async with _limiter_lock:
-        while True:
-            now = time.monotonic()
-            while _call_times and now - _call_times[0] >= _WINDOW_SECONDS:
-                _call_times.popleft()
-
-            if len(_call_times) < max(1, settings.GEMINI_RPM):
-                _call_times.append(now)
-                return
-
-            wait = _WINDOW_SECONDS - (now - _call_times[0]) + 0.1
-            logger.info(
-                "Gemini RPM budget full (%d calls in the last 60s) — waiting %.1fs",
-                len(_call_times), wait,
-            )
-            await asyncio.sleep(wait)
-
-
-def _is_quota_error(exc: BaseException) -> bool:
+def is_quota_error(exc: BaseException) -> bool:
     text = str(exc)
     return (
         "429" in text
@@ -165,6 +138,40 @@ def extract_json(text: str) -> dict | list | None:
     return None
 
 
+def extract_partial_array(text: str) -> list[dict]:
+    """Recover as many leading objects as possible from a truncated JSON array.
+
+    Scans for top-level {...} blocks in order and stops at the first one that
+    doesn't parse — which is exactly where a max-tokens cutoff lands, since
+    everything before the cut is still well-formed JSON. Shared by every
+    batched-array agent (filter_agent, combined_processing_agent, ...) so a
+    truncated batch response only loses the unparsed tail, not the whole call.
+    """
+    if not text:
+        return []
+
+    objects: list[dict] = []
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    obj = json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    break
+                if not isinstance(obj, dict):
+                    break
+                objects.append(obj)
+                start = None
+    return objects
+
+
 async def call_llm_raw(prompt: str) -> str:
     """Send `prompt` to the LLM and return the raw text response.
 
@@ -183,7 +190,7 @@ async def call_llm_raw(prompt: str) -> str:
     quota_retries = max(0, settings.GEMINI_429_RETRIES)
     attempt = 0
     while True:
-        await _acquire_slot()
+        await _gemini_bucket.acquire()
         try:
             response = await get_llm().ainvoke(messages)
             break
@@ -195,11 +202,11 @@ async def call_llm_raw(prompt: str) -> str:
                 fallback = _switch_to_fallback()
                 if fallback is None:
                     raise
-                await _acquire_slot()
+                await _gemini_bucket.acquire()
                 response = await fallback.ainvoke(messages)
                 break
 
-            if _is_quota_error(exc):
+            if is_quota_error(exc):
                 if attempt >= quota_retries:
                     raise GeminiQuotaExhausted(
                         "Gemini API quota exhausted (429) after "

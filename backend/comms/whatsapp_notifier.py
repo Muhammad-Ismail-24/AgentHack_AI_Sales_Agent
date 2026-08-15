@@ -25,6 +25,11 @@ Message templates match sufiyan_work.md's Step 6 spec verbatim, emoji
 included. See utils/logger.py's _make_console_utf8_safe() for the UTF-8
 console fix that keeps that content from mangling — or raising — in
 mock-mode log output on Windows.
+
+Every Green API send is throttled through a module-level TokenBucket
+(settings.GREEN_API_RPM) — see utils/rate_limiter.py. Mock mode and the
+Twilio fallback aren't gated; Green API is the transport actually at risk
+of a 429.
 """
 
 import re
@@ -32,8 +37,10 @@ import re
 import httpx
 
 from comms._deps import get_logger, settings
+from utils.rate_limiter import TokenBucket
 
 _log = get_logger("comms.whatsapp_notifier")
+_green_api_bucket = TokenBucket(settings.GREEN_API_RPM)
 
 
 def _to_chat_id(phone: str) -> str:
@@ -88,6 +95,7 @@ class WhatsAppNotifier:
     async def _send_green_api(self, to_number: str, message: str) -> bool:
         url = f"{self.green_api_url}/waInstance{self.id_instance}/sendMessage/{self.token_instance}"
         payload = {"chatId": _to_chat_id(to_number), "message": message}
+        await _green_api_bucket.acquire()
         try:
             async with httpx.AsyncClient(timeout=15.0) as client:
                 response = await client.post(url, json=payload)

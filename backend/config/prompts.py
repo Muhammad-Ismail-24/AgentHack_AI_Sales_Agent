@@ -77,83 +77,6 @@ above:
 ]"""
 
 
-QUALIFICATION_PROMPT = """You are a senior sales analyst. Score this lead from 0-100
-based on how well it matches the ICP fit, any buying signals in the research,
-company size fit, and how well their apparent problems match what we sell. Be
-specific — ground the score and explanation in the actual research provided,
-not generic reasoning.
-
-Company research: {company_research}
-Target ICP: {icp}
-Our company's services and knowledge (from RAG): {company_knowledge}
-
-Respond with ONLY valid JSON matching this exact schema, no extra text:
-{{
-  "score": <integer 0-100>,
-  "explanation": "<2-3 sentence plain-English explanation of the score>",
-  "top_reasons": ["<reason this lead is a good fit>", "..."],
-  "red_flags": ["<any concern or reason to be cautious>", "..."]
-}}"""
-
-
-SERVICE_MATCHING_PROMPT = """You are a sales strategist. Based on what our company
-actually offers and what we know about this specific prospect, pick the single
-best service or product to pitch to them. Do not invent services we don't
-offer — only recommend something that is actually described in our company
-knowledge below.
-
-Our company's services and offerings (from RAG): {company_services}
-Prospect research: {prospect_research}
-
-Respond with ONLY valid JSON matching this exact schema, no extra text:
-{{
-  "recommended_service": "<the single best-fit service/product name>",
-  "pitch_angle": "<the specific angle to use when pitching it to this prospect>",
-  "why_it_fits": "<1-2 sentences on why this service fits this prospect's situation>"
-}}"""
-
-
-DECISION_MAKER_PROMPT = """You are a B2B sales researcher. Given the service we are
-about to pitch and the list of available contacts at the target company,
-choose the single best decision-maker to target first — the person most
-likely to own the problem this service solves and have influence over the
-buying decision.
-
-Recommended service being pitched: {recommended_service}
-Available contacts: {available_contacts}
-
-Respond with ONLY valid JSON matching this exact schema, no extra text:
-{{
-  "primary_contact": {{
-    "name": "<contact's full name>",
-    "role": "<contact's job title>",
-    "email": "<contact's email address>"
-  }},
-  "reason": "<1-2 sentences on why this person is the right first target>"
-}}"""
-
-
-EMAIL_WRITER_PROMPT = """You are an expert B2B cold email writer. Write a short,
-personalised, evidence-based outreach email. Never invent facts — only
-reference things that are actually present in the research provided below.
-Max 150 words. No fluff, no generic filler, no over-the-top compliments. End
-with a soft, low-pressure call to action (never "buy now" — invite a short
-conversation instead) and include the booking link naturally in the CTA.
-
-Recipient: {contact_name}, {contact_role} at {company_name}
-Research summary on {company_name}: {company_research_summary}
-Service we're recommending: {recommended_service}
-Why it fits them: {why_it_fits}
-Meeting booking link: {booking_link}
-Our company (the sender): {sender_company_name}
-
-Respond with ONLY valid JSON matching this exact schema, no extra text:
-{{
-  "subject": "<short, specific subject line, no clickbait>",
-  "body": "<the full email body, under 150 words, ending with the soft CTA and booking link>"
-}}"""
-
-
 COMBINED_PROCESSING_PROMPT = """You are an elite B2B sales strategist, analyst, and copywriter.
 Your task is to process a fully researched lead in one go: score them against our ICP, pick the best service to pitch, select the best decision maker, and write the final cold email.
 
@@ -192,6 +115,57 @@ Respond with ONLY valid JSON matching this exact schema:
     "body": "<full email body, under 150 words, ending with a soft CTA and {booking_link}>"
   }}
 }}"""
+
+
+BATCH_COMBINED_PROCESSING_PROMPT = """You are an elite B2B sales strategist, analyst, and copywriter.
+For EACH of the numbered leads below, do all four jobs in one pass: score them against
+our ICP, pick the best service to pitch, select the best decision maker, and write the
+final cold email.
+
+Target ICP: {icp}
+Our company's services and knowledge (from RAG): {company_knowledge}
+Our company (the sender): {sender_company_name}
+
+Do not invent facts. Ground all reasoning and each email in that lead's own research.
+For the decision maker, you MUST pick from that lead's own "Available contacts" list —
+never invent a name or email that isn't in it. If "Available contacts" is empty, leave
+primary_contact's fields as empty strings rather than guessing.
+If a lead does not fit the ICP (score < 40), still return its full object, but you can
+leave the email body empty.
+
+Leads:
+{leads_block}
+
+Respond with ONLY a valid JSON array, no extra text. It MUST have exactly {lead_count}
+objects, one per lead, IN THE SAME ORDER as the numbered list above:
+[
+  {{
+    "qualification": {{
+      "score": <integer 0-100>,
+      "explanation": "<2-3 sentence plain-English explanation of the score>",
+      "top_reasons": ["<reason this lead is a good fit>", "..."],
+      "red_flags": ["<any concern or reason to be cautious>", "..."]
+    }},
+    "service_match": {{
+      "recommended_service": "<the single best-fit service/product name>",
+      "pitch_angle": "<the specific angle to use>",
+      "why_it_fits": "<1-2 sentences on why this fits>"
+    }},
+    "decision_maker": {{
+      "primary_contact": {{
+        "name": "<contact full name, from that lead's Available contacts>",
+        "role": "<job title, from that lead's Available contacts>",
+        "email": "<email address, from that lead's Available contacts>"
+      }},
+      "reason": "<why this person is the best target>"
+    }},
+    "email": {{
+      "subject": "<short, specific subject line>",
+      "body": "<full email body, under 150 words, ending with a soft CTA and that lead's own booking link>"
+    }}
+  }},
+  ...
+]"""
 
 
 # ══════════════════════════════════════════════════════════════════════

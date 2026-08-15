@@ -23,14 +23,16 @@
                          └───────────┬──────────────┘
                                      ▼
    ┌─────────────────────────────────────────────────────────────────┐
-   │  LangGraph orchestrator — 9 agents, all on Gemini               │
+   │  LangGraph orchestrator — 6 agents, all on Gemini               │
    │                                                                 │
-   │  Discovery ─► Filter ─► Research ─► Qualification ─►            │
-   │  Service Matching ─► Decision Maker ─► Email Writer             │
-   │       │            │           │                                │
-   │    Tavily/      cheap LLM   Apollo +                            │
-   │    Serper       pass        Playwright + Hunter                 │
-   └───────────────────────────┬─────────────────────────────────────┘
+   │  Discovery ─► Filter ─► Research ─► Combined Processing         │
+   │  (score + match + pick contact + write email, all leads,        │
+   │   in ONE batched LLM call — not one call per lead)              │
+   │                                                                 │
+   │     Tavily/     batched      Apollo +      Hunter (real         │
+   │     Serper      LLM call    Playwright     contacts) +          │
+   │                                            Cal.com link         │
+   └─────────────────────────────┬───────────────────────────────────┘
                                │ outreach_queue
                                ▼
                     ┌──────────────────────┐

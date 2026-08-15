@@ -8,6 +8,13 @@ Every key is optional at boot: the app starts and `/health` answers even with
 an empty file. Features degrade individually rather than crashing — except
 Firestore, without which every data route fails.
 
+Every outbound API integration that can realistically 429 — Gemini, Green
+API, Tavily, Apollo, Hunter, Resend — is throttled by its own token bucket
+(`backend/utils/rate_limiter.py`), sized by the `*_RPM` setting in that
+integration's section below. One bucket per provider, shared process-wide,
+so concurrent pipeline runs or scheduler ticks can't jointly exceed a
+provider's rate even though no single call site knows about the others.
+
 ## LLM — Google Gemini
 
 | Key | Required for | Where to get it |
@@ -15,7 +22,7 @@ Firestore, without which every data route fails.
 | `GEMINI_API_KEY` | all 9 agents, reply classification, follow-up drafting, meeting briefings | aistudio.google.com → Get API key |
 | `GOOGLE_API_KEY` | same — the name the Google SDKs use by convention | either key works; `GEMINI_API_KEY` wins when both are set |
 | `GEMINI_MODEL` | optional override, defaults to `gemini-3.5-flash` | — |
-| `GEMINI_RPM` | requests/minute budget for the shared key — the limiter in `agents/llm_utils.py` holds every LLM call (agents *and* comms) to this rate | free tier allows 15; default 14 for headroom. Raise on a paid tier. |
+| `GEMINI_RPM` | requests/minute budget for the shared key — a token bucket in `agents/llm_utils.py` throttles every LLM call (agents *and* comms) to this rate | free tier allows 15; default 14 for headroom. Raise on a paid tier. |
 | `GEMINI_429_RETRIES` | how many times one call waits out a 429 before failing with a clear quota error | default 2 |
 
 Without a Gemini key the comms LLM drops into mock mode (keyword-heuristic
@@ -27,13 +34,16 @@ classification) and the agent pipeline cannot run.
 |---|---|---|
 | `TAVILY_API_KEY` | `discovery_agent.py`, `research_agent.py` — primary web search | tavily.com |
 | `SERPER_API_KEY` | fallback search when Tavily is rate-limited | serper.dev |
+| `TAVILY_RPM` | requests/minute budget, enforced by a token bucket in `tools/tavily_search.py` | default 60 — a conservative placeholder, not verified against Tavily's actual plan limits |
 
 ## Contact enrichment
 
 | Key | Required for | Where to get it |
 |---|---|---|
 | `APOLLO_API_KEY` | `research_agent.py` — company enrichment | apollo.io → Settings → Integrations → API |
-| `HUNTER_API_KEY` | `decision_maker_agent.py` — finding decision-maker emails | hunter.io → API |
+| `HUNTER_API_KEY` | `combined_processing_agent.py` — finding real decision-maker emails to ground the LLM's contact pick | hunter.io → API |
+| `APOLLO_RPM` | requests/minute budget, enforced by a token bucket in `tools/apollo_enrichment.py` | default 50 — a conservative placeholder, not verified against Apollo's actual plan limits |
+| `HUNTER_RPM` | requests/minute budget, enforced by a token bucket in `tools/hunter_email.py` | default 60 — a conservative placeholder, not verified against Hunter's actual plan limits |
 
 ## Vector store
 
@@ -74,6 +84,7 @@ break validation, but nothing reads it — persistence is Firestore.
 | `SMTP_PASSWORD` | — | a Google **app password**, not the account password (myaccount.google.com → Security → App passwords) |
 | `SENDER_EMAIL` | the From address | defaults to `SMTP_USER` when blank |
 | `RESEND_API_KEY` | optional alternative sender | only used when SMTP is not configured. Resend's free tier will only deliver to your own verified address, which is why SMTP is preferred. |
+| `RESEND_RPM` | requests/minute budget, enforced by a token bucket in `comms/email_sender.py` | default 60 — a conservative placeholder, not verified against Resend's actual plan limits. Only gates the Resend transport — SMTP isn't rate-limited. |
 
 With neither configured, `EmailSender` runs in mock mode: it logs the payload,
 records the email in Firestore, and reports success — so the demo flows work
@@ -94,6 +105,7 @@ end to end without sending real mail.
 | `GREEN_API_ID_INSTANCE` | — | Green API console → your instance |
 | `GREEN_API_TOKEN_INSTANCE` | — | Green API console → your instance. **Treat this like a password — never commit it.** |
 | `ADMIN_WHATSAPP_NUMBER` | the 30-minute pre-meeting reminder and meeting-confirmed alert | digits only or `+`-prefixed, e.g. `971501234567` |
+| `GREEN_API_RPM` | requests/minute budget, enforced by a token bucket in `comms/whatsapp_notifier.py` | default 15. Only gates the Green API transport — mock mode and the Twilio fallback aren't rate-limited. |
 
 Plain REST — no SDK. `whatsapp_notifier.py` POSTs to
 `{GREEN_API_URL}/waInstance{GREEN_API_ID_INSTANCE}/sendMessage/{GREEN_API_TOKEN_INSTANCE}`.
@@ -126,6 +138,6 @@ instead of sending (mock mode), so the demo still runs with zero credentials.
 | `PIPELINE_STATE_TTL_SECONDS` | `7200` | how long a run's Redis state survives |
 | `CHUNK_SIZE` / `CHUNK_OVERLAP` | `800` / `150` | RAG chunking |
 | `RETRIEVER_TOP_K` | `5` | chunks retrieved per query |
-| `MAX_LEADS_TO_RESEARCH` | `10` | caps the expensive deep-research stage |
+| `MAX_LEADS_TO_RESEARCH` | `6` | caps the expensive deep-research stage (scraping/Apollo/Tavily per lead) — no longer needs to be kept tiny to protect the Gemini call budget, since `combined_processing_agent` scores/matches/writes for every researched lead in one batched LLM call |
 | `MIN_QUALIFICATION_SCORE` | `40` | below this a lead is dropped |
 | `SENDER_COMPANY_NAME` | `NovaTech Solutions` | signs the outreach emails |

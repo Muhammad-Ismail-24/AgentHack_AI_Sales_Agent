@@ -5,9 +5,12 @@ import requests
 from config.settings import settings
 from utils.cache import get_cache, set_cache
 from utils.logger import logger
+from utils.rate_limiter import SyncTokenBucket
 
 APOLLO_URL = "https://api.apollo.io/api/v1/organizations/enrich"
 CACHE_TTL_SECONDS = 48 * 60 * 60  # 48h
+
+_bucket = SyncTokenBucket(settings.APOLLO_RPM)
 
 
 def _cache_key(domain: str) -> str:
@@ -20,6 +23,11 @@ def enrich_company(domain: str) -> dict:
     Returns {name, industry, employee_count, location, founded_year,
     funding_total}. Returns {} on any failure. Checks Redis first — if the
     domain was looked up in the last 48h, returns the cached result.
+
+    Synchronous and throttled with a blocking wait (SyncTokenBucket) — always
+    call this via asyncio.to_thread(...), never directly from a coroutine
+    running on the event loop, or a throttled wait freezes the whole server.
+    research_agent.py already does this.
     """
     if not domain:
         return {}
@@ -34,6 +42,7 @@ def enrich_company(domain: str) -> dict:
         return {}
 
     try:
+        _bucket.acquire()
         response = requests.get(
             APOLLO_URL,
             headers={

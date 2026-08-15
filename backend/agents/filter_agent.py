@@ -20,51 +20,15 @@ reports the real reason instead of silently completing with 0 qualified leads.
 
 import json
 
-from agents.llm_utils import call_llm_json, call_llm_raw
+from agents.llm_utils import call_llm_json, call_llm_raw, is_quota_error
 from agents.llm_utils import extract_json as _extract_json
+from agents.llm_utils import extract_partial_array as _extract_partial_array
 from config.prompts import BATCH_FILTER_PROMPT, FILTER_PROMPT
 from utils.logger import logger
 
 # Kept small enough that a full batch's JSON array comfortably fits inside
 # GEMINI_MAX_TOKENS — a 40-lead batch was observed truncating mid-response.
 BATCH_SIZE = 15
-
-
-def _is_quota_error(exc: Exception) -> bool:
-    text = str(exc)
-    return "429" in text or "ResourceExhausted" in type(exc).__name__ or "quota" in text.lower()
-
-
-def _extract_partial_array(text: str) -> list[dict]:
-    """Recover as many leading objects as possible from a truncated JSON array.
-
-    Scans for top-level {...} blocks in order and stops at the first one that
-    doesn't parse — which is exactly where a max-tokens cutoff lands, since
-    everything before the cut is still well-formed JSON.
-    """
-    if not text:
-        return []
-
-    objects: list[dict] = []
-    depth = 0
-    start = None
-    for i, ch in enumerate(text):
-        if ch == "{":
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0 and start is not None:
-                try:
-                    obj = json.loads(text[start : i + 1])
-                except json.JSONDecodeError:
-                    break
-                if not isinstance(obj, dict):
-                    break
-                objects.append(obj)
-                start = None
-    return objects
 
 
 async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bool]:
@@ -81,7 +45,7 @@ async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bo
         result = await call_llm_json(prompt)
         return isinstance(result, dict) and result.get("is_potential_fit") is True, False
     except Exception as e:
-        if _is_quota_error(e):
+        if is_quota_error(e):
             logger.warning("filter_agent: Gemini quota exhausted mid per-lead fallback, stopping")
             return False, True
         logger.warning(
@@ -109,7 +73,7 @@ async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], b
     try:
         raw_text = await call_llm_raw(prompt)
     except Exception as e:
-        if _is_quota_error(e):
+        if is_quota_error(e):
             logger.warning("filter_agent: Gemini quota exhausted on batch call, stopping")
             return [], True
         logger.warning(f"filter_agent: batch call failed ({e}), falling back to per-lead")

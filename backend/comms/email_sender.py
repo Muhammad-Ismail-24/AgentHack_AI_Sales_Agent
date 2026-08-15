@@ -13,6 +13,10 @@ Three transports, tried in order at construction time:
      comms tests run with no credentials at all.
 
 The public interface is unchanged: `await EmailSender().send(...)`.
+
+The Resend path is throttled through a module-level TokenBucket
+(settings.RESEND_RPM) — see utils/rate_limiter.py. SMTP and mock aren't
+gated; Resend is the transport with a documented external rate limit.
 """
 
 import asyncio
@@ -23,8 +27,10 @@ from email.message import EmailMessage
 from email.utils import formataddr
 
 from comms._deps import crud, get_logger, settings
+from utils.rate_limiter import TokenBucket
 
 _log = get_logger("comms.email_sender")
+_resend_bucket = TokenBucket(settings.RESEND_RPM)
 
 
 class EmailSender:
@@ -125,6 +131,7 @@ class EmailSender:
                     "subject": subject,
                     "html": body.replace("\n", "<br>"),
                 }
+                await _resend_bucket.acquire()
                 response = await asyncio.to_thread(self._resend.Emails.send, params)
                 resend_id = (
                     response.get("id")
