@@ -1,0 +1,9 @@
+# Comms-layer dependencies (Sufiyan's ownership — backend/comms/).
+# Fold these into the root backend/requirements.txt when it's created
+# (see conflicts.md). Kept separate for now since no root requirements.txt
+# exists yet.
+
+anthropic>=0.40.0
+resend>=2.0.0
+apscheduler>=3.10.0
+twilio>=9.0.0
