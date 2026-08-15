@@ -20,7 +20,10 @@ from agents.llm_utils import call_llm_json
 from config.prompts import BATCH_FILTER_PROMPT, FILTER_PROMPT
 from utils.logger import logger
 
-BATCH_SIZE = 10
+# Large enough to cover a typical discovery_agent run (3 queries x up to 10
+# results each, deduplicated) in a single call — see BATCH_FILTER_PROMPT's
+# token budget in prompts.py.
+BATCH_SIZE = 40
 
 
 def _is_quota_error(exc: Exception) -> bool:
