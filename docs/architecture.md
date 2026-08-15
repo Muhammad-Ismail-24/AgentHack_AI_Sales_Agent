@@ -132,7 +132,7 @@ that half-works beats one that 500s:
 | Redis | in-process cache, single-process only |
 | Gemini key | comms LLM returns its caller's mock fallback; agents cannot run |
 | SMTP + Resend | `EmailSender` mock mode — records the email, reports success |
-| Twilio | WhatsApp notifier logs instead of sending |
+| Green API (and Twilio, its fallback) | WhatsApp notifier logs instead of sending |
 | Tavily | falls back to Serper |
 | Playwright browsers | scraping steps degrade, research continues |
 | Orchestrator import | `/pipeline/start` returns 503, dashboard still usable |

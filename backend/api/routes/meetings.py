@@ -44,6 +44,7 @@ class CreateMeetingResponse(BaseModel):
     meeting_link: Optional[str] = None
     email_sent: bool = False
     whatsapp_sent: bool = False
+    company_whatsapp_sent: bool = False
 
 
 # --- routes ------------------------------------------------------------

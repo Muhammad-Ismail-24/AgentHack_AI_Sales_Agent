@@ -84,12 +84,30 @@ end to end without sending real mail.
 | `CAL_API_KEY` | generating booking links | cal.com → Settings → Developer → API Keys |
 | `CALENDAR_BASE_URL` | optional, defaults to `https://cal.com/admin` | — |
 
-## WhatsApp (Twilio) — currently switched off
+## WhatsApp — Green API is the active path
 
-`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM`, and
-`ADMIN_WHATSAPP_NUMBER` are declared so the keys validate, but WhatsApp
-notifications are disabled for now. `whatsapp_notifier.py` logs instead of
-sending when these are blank.
+| Key | Required for | Where to get it |
+|---|---|---|
+| `GREEN_API_URL` | admin + company WhatsApp notifications | defaults to `https://api.greenapi.com`; your instance may use a numbered host like `https://7107.api.greenapi.com` — check the Green API console |
+| `GREEN_API_ID_INSTANCE` | — | Green API console → your instance |
+| `GREEN_API_TOKEN_INSTANCE` | — | Green API console → your instance. **Treat this like a password — never commit it.** |
+| `ADMIN_WHATSAPP_NUMBER` | the 30-minute pre-meeting reminder and meeting-confirmed alert | digits only or `+`-prefixed, e.g. `971501234567` |
+
+Plain REST — no SDK. `whatsapp_notifier.py` POSTs to
+`{GREEN_API_URL}/waInstance{GREEN_API_ID_INSTANCE}/sendMessage/{GREEN_API_TOKEN_INSTANCE}`.
+
+**Extra credit — messaging the company directly:** if a lead's contact has a
+`phone` field set (see `docs/database_schema.md` → `contacts`), the same
+Green API path also sends that contact a short meeting-confirmation message
+(no internal briefing content — that stays admin-only) when a meeting is
+created. Nothing extra to configure; it activates automatically per-contact.
+
+### Twilio — legacy fallback
+
+`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_FROM` are
+declared so the keys validate. `whatsapp_notifier.py` only falls back to
+Twilio when Green API isn't configured; with neither configured it logs
+instead of sending (mock mode), so the demo still runs with zero credentials.
 
 ## Frontend
 

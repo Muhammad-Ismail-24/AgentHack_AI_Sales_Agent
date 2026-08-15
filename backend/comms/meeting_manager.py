@@ -1,22 +1,15 @@
 """
 Handles meeting requests: generates a booking link, records the meeting,
-confirms it to the prospect by email, notifies the admin on WhatsApp, and
-(separately, via send_pre_meeting_reminder) sends a pre-meeting briefing
-shortly before the scheduled time.
+confirms it to the prospect by email, notifies the admin on WhatsApp, messages
+the company directly on WhatsApp when their contact has a phone on file
+(extra credit — see whatsapp_notifier.py), and (separately, via
+send_pre_meeting_reminder) sends the admin a pre-meeting briefing shortly
+before the scheduled time.
 
-Two dependencies aren't built yet in this branch and are borrowed the same
-way backend/config, backend/utils, and backend/db are borrowed elsewhere
-in comms/ (see comms/_deps.py and conflicts.md):
-
-  - tools.calendar_tool.generate_booking_link — owned by Ismail
-    (backend/tools/, per FOLDER_STRUCTURE.md). Falls back to a
-    deterministic fake cal.com-style link when absent.
-  - comms.whatsapp_notifier.WhatsAppNotifier — Sufiyan's own Step 6, just
-    not built yet in this session ("stick to numerical order"). Falls
-    back to a stub that logs and reports whatsapp_sent=False.
-
-Both fall-backs disappear automatically once the real modules exist —
-nothing in this file needs to change.
+comms.whatsapp_notifier.WhatsAppNotifier is real as of the Green API
+integration — the try/except below and its stub fallback are dead code in
+this merged repo (tools.calendar_tool, Ismail's, may still be pending; see
+merge_notes.md), kept only as a defensive guard rather than an assumed gap.
 """
 
 import re
@@ -60,6 +53,10 @@ except ImportError:
             _log.warning("whatsapp_notifier.py not built yet (Step 6) - skipping pre-meeting WhatsApp briefing")
             return False
 
+        async def send_company_meeting_confirmation(self, **kwargs) -> bool:
+            _log.warning("whatsapp_notifier.py not built yet (Step 6) - skipping company-facing WhatsApp message")
+            return False
+
     _log.info("comms.whatsapp_notifier not found - MeetingManager using a stub notifier for now")
 
 
@@ -82,7 +79,12 @@ class MeetingManager:
         contact = crud.get_primary_contact(lead_id)
         if lead is None or contact is None:
             _log.error("handle_meeting_request: lead or contact not found for lead_id=%s", lead_id)
-            return {"meeting_link": None, "email_sent": False, "whatsapp_sent": False}
+            return {
+                "meeting_link": None,
+                "email_sent": False,
+                "whatsapp_sent": False,
+                "company_whatsapp_sent": False,
+            }
 
         company_name = lead["company_name"]
         meeting_link = generate_booking_link(company_name)
@@ -114,12 +116,29 @@ class MeetingManager:
             scheduled_time="pending prospect selection",
         )
 
+        # Extra credit: message the company directly on WhatsApp when their
+        # contact record has a phone number on file. Skipped entirely (no
+        # network call attempted) rather than sent-and-failed when absent —
+        # most contacts won't have one yet, since decision_maker_agent.py
+        # doesn't currently populate `phone`.
+        company_whatsapp_sent = False
+        contact_phone = contact.get("phone")
+        if contact_phone:
+            company_whatsapp_sent = await self._whatsapp.send_company_meeting_confirmation(
+                to_number=contact_phone,
+                company_name=company_name,
+                contact_name=contact["name"],
+                meeting_link=meeting_link,
+                scheduled_time="pending prospect selection",
+            )
+
         crud.update_lead_stage(lead_id, "Meeting Scheduled")
 
         return {
             "meeting_link": meeting_link,
             "email_sent": bool(email_result.get("success")),
             "whatsapp_sent": bool(whatsapp_sent),
+            "company_whatsapp_sent": company_whatsapp_sent,
         }
 
     async def send_pre_meeting_reminder(self, meeting_id: str) -> None:
