@@ -96,8 +96,13 @@ def extract_json(text: str) -> dict | list | None:
     return None
 
 
-async def call_llm_json(prompt: str) -> dict | list | None:
-    """Send `prompt` to the LLM and return the parsed JSON response, or None."""
+async def call_llm_raw(prompt: str) -> str:
+    """Send `prompt` to the LLM and return the raw text response.
+
+    Split out from call_llm_json so callers that need to recover a partial
+    result from a truncated/malformed response (e.g. filter_agent's batch
+    prompt) can inspect the raw text themselves instead of only getting None.
+    """
     messages = [HumanMessage(content=prompt)]
 
     try:
@@ -111,9 +116,14 @@ async def call_llm_json(prompt: str) -> dict | list | None:
             raise
         response = await fallback.ainvoke(messages)
 
-    content = (
+    return (
         response.content
         if isinstance(response.content, str)
         else str(response.content)
     )
+
+
+async def call_llm_json(prompt: str) -> dict | list | None:
+    """Send `prompt` to the LLM and return the parsed JSON response, or None."""
+    content = await call_llm_raw(prompt)
     return extract_json(content)
