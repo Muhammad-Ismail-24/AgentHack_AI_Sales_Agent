@@ -1,5 +1,5 @@
 """
-End-to-end smoke test for the comms layer built so far (Steps 1-5).
+End-to-end smoke test for the comms layer built so far (Steps 1-7).
 
 Run from backend/:
     python test_comms.py
@@ -14,6 +14,8 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from api.routes.emails import SendEmailRequest, list_emails, send_email
+from api.routes.meetings import CreateMeetingRequest, create_meeting, list_meetings
 from comms._deps import USING_REAL_BACKEND, crud, get_logger
 from comms._llm import is_mock_mode
 from comms.email_reader import EmailReader
@@ -25,6 +27,7 @@ from comms.meeting_manager import (
     MeetingManager,
 )
 from comms.response_classifier import ResponseClassifier
+from comms.whatsapp_notifier import WhatsAppNotifier
 
 _log = get_logger("test_comms")
 
@@ -38,7 +41,7 @@ def _banner() -> None:
     print(f"  Claude (anthropic)  : {'MOCK' if is_mock_mode() else 'LIVE'}")
     print(f"  Resend              : {'MOCK' if EmailSender().mock else 'LIVE'}")
     print(f"  tools.calendar_tool : {'REAL' if _USING_REAL_CALENDAR_TOOL else 'MOCK (Ismail not landed yet)'}")
-    print(f"  whatsapp_notifier   : {'REAL' if _USING_REAL_WHATSAPP_NOTIFIER else 'STUB (Step 6 not built yet)'}")
+    print(f"  whatsapp_notifier   : {'REAL module' if _USING_REAL_WHATSAPP_NOTIFIER else 'STUB'}, Twilio client = {'MOCK' if WhatsAppNotifier().mock else 'LIVE'}")
     print("=" * 70)
 
 
@@ -122,8 +125,34 @@ async def test_pre_meeting_reminder() -> None:
     print(f"  meeting.admin_notified  : {refreshed['admin_notified']}")
 
 
+async def test_api_routes() -> None:
+    print("\n--- 5. API routes (backend/api/routes/emails.py + meetings.py) ---")
+
+    emails_before = await list_emails()
+    meetings_before = await list_meetings()
+    print(f"  GET /emails   -> {len(emails_before)} email(s) on record")
+    print(f"  GET /meetings -> {len(meetings_before)} meeting(s) on record")
+
+    contact = crud.get_primary_contact("lead_003")
+    send_result = await send_email(
+        SendEmailRequest(
+            lead_id="lead_003",
+            contact_id=contact["id"],
+            subject="Following up - GammaSupply",
+            body="Just checking in - happy to answer any questions.",
+        )
+    )
+    print(f"  POST /emails/send   -> success={send_result.success} message={send_result.message!r}")
+
+    create_result = await create_meeting(CreateMeetingRequest(lead_id="lead_002"))
+    print(
+        f"  POST /meetings/create -> meeting_link={create_result.meeting_link} "
+        f"email_sent={create_result.email_sent} whatsapp_sent={create_result.whatsapp_sent}"
+    )
+
+
 async def test_followup_scheduler() -> None:
-    print("\n--- 5. Follow-up scheduler ---")
+    print("\n--- 6. Follow-up scheduler ---")
     candidates_before = crud.get_emails_needing_followup(days=3)
     print(f"  Emails currently qualifying for a 3-day follow-up: {len(candidates_before)}")
     if not candidates_before:
@@ -139,6 +168,7 @@ async def main() -> None:
     await test_email_reader()
     await test_meeting_flow()
     await test_pre_meeting_reminder()
+    await test_api_routes()
     await test_followup_scheduler()
     print("\nDone.")
 

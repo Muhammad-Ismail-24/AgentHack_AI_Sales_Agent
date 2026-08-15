@@ -52,6 +52,18 @@ _configured = False
 def get_logger(name: str) -> logging.Logger:
     global _configured
     if not _configured:
+        # Best-effort: make console output UTF-8-safe on platforms (Windows)
+        # whose default stdout codepage can't represent characters that show
+        # up in log messages and mock payloads — e.g. the emoji and em dash
+        # in whatsapp_notifier.py's message templates. Without this, writing
+        # them can mangle output or raise inside the logging call.
+        for stream in (sys.stdout, sys.stderr):
+            reconfigure = getattr(stream, "reconfigure", None)
+            if reconfigure is not None:
+                try:
+                    reconfigure(encoding="utf-8", errors="replace")
+                except Exception:  # noqa: BLE001 — purely cosmetic, never fatal
+                    pass
         logging.basicConfig(
             level=logging.INFO,
             format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -275,6 +287,12 @@ class _ShimCRUD:
     def get_contact_by_email(self, email: str) -> Optional[dict]:
         for contact in self._contacts.values():
             if contact["email"].lower() == email.lower():
+                return contact
+        return None
+
+    def get_contact(self, contact_id: str) -> Optional[dict]:
+        for contact in self._contacts.values():
+            if contact["id"] == contact_id:
                 return contact
         return None
 

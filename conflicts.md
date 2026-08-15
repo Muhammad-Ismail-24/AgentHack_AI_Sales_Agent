@@ -26,7 +26,7 @@ modules are stable, to stop anyone accidentally depending on the fakes.
 ## 2. CRUD contract — what `backend/db/crud.py` must implement
 
 The shim implements these exact signatures, exercised end-to-end by
-`test_comms.py` through Steps 1-5. Wajeeh's real `crud.py` should match
+`test_comms.py` through Steps 1-7. Wajeeh's real `crud.py` should match
 them (or the comms layer needs small call-site updates — better to match).
 
 ```python
@@ -59,17 +59,23 @@ def create_followup(lead_id: str, email_id: str, scheduled_for: datetime,
 def get_lead(lead_id: str) -> dict | None
 def get_primary_contact(lead_id: str) -> dict | None
 def get_contact_by_email(email: str) -> dict | None
+def get_contact(contact_id: str) -> dict | None
 def update_lead_stage(lead_id: str, stage: str) -> dict | None
 ```
 
 Column names follow `.claude/skills/database-schema.md` (`leads`,
 `contacts`, `emails`, `replies`, `meetings`, `followups` tables). Note:
-`get_contact_by_email`, `get_meetings_needing_reminder`, and
-`mark_meeting_admin_notified` aren't in `.claude/skills/database-schema.md`
-as named functions — they're read/update patterns over the existing
-columns (`contacts.email`, `meetings.scheduled_at`,
-`meetings.admin_notified`), so no schema change is implied, just these
-three query functions.
+`get_contact_by_email`, `get_contact`, `get_meetings_needing_reminder`,
+and `mark_meeting_admin_notified` aren't in
+`.claude/skills/database-schema.md` as named functions — they're
+read/update patterns over the existing columns (`contacts.id`,
+`contacts.email`, `meetings.scheduled_at`, `meetings.admin_notified`), so
+no schema change is implied, just these query functions.
+
+`get_contact` (by `contact_id`) was added while building
+`api/routes/emails.py` (Step 7) — `POST /emails/send`'s request body
+carries `contact_id`, not an email address, so the route needs to resolve
+the send-to address itself.
 
 `get_emails_needing_followup` and `get_meetings_needing_reminder`
 matching logic ("Re: {subject}" stripping, from_email → contact fallback)
@@ -110,31 +116,68 @@ and actually calls the Cal.com API, it will be the one reading this key.
   (`lead_001`, `lead_002`, `lead_003`) are referenced by the comms shim's
   fake data too — if Wajeeh or Ismail create their own seed leads with
   different IDs, reconcile before the full-pipeline demo.
-- **`backend/api/`** and **`backend/api/routes/`** — created by this
-  session (didn't exist) to hold `webhook.py`. Only `__init__.py` files
-  and `webhook.py` exist; `emails.py`, `meetings.py`, and
-  `api/schemas.py` are still open (Steps 6-7, and schemas.py per
-  FOLDER_STRUCTURE.md is Wajeeh's).
+- **`backend/api/`** and **`backend/api/routes/`** — created to hold
+  `webhook.py` (Step 4), and now `emails.py` + `meetings.py` (Step 7).
+  All three files owned by Sufiyan per `sufiyan_work.md`. Only
+  `__init__.py` files plus these three route files exist — no
+  `api/schemas.py` (Wajeeh's, per FOLDER_STRUCTURE.md's file guide, and
+  still doesn't exist). See Section 4b below for how the route files
+  avoid depending on it.
+- **`backend/comms/whatsapp_notifier.py`** — Step 6, built. Message
+  templates (including the ✅/⏰ emoji and em dash from
+  `sufiyan_work.md`'s spec) are used verbatim. See Section 4a — the
+  `meeting_manager.py` stub for this module is now dead code (the real
+  import always succeeds) but harmless to leave in place.
 
 ### 4a. Borrowed dependencies beyond config/utils/db
 
-Two more dependencies got the same "defensive import + local fallback"
-treatment as `comms/_deps.py`, scoped locally inside `meeting_manager.py`
-rather than the central shim (they're not settings/logging/DB, so didn't
-belong in `_deps.py`):
+`meeting_manager.py` borrows two dependencies the same "defensive import
++ local fallback" way `comms/_deps.py` borrows Wajeeh's three modules —
+scoped locally rather than in the central shim, since neither is
+settings/logging/DB:
 
 - **`tools.calendar_tool.generate_booking_link(company_name: str) -> str`**
   — Ismail's `backend/tools/` (per FOLDER_STRUCTURE.md ownership table).
-  Doesn't exist yet. `meeting_manager.py` falls back to a slugified fake
-  `https://cal.com/admin/<slug>` link. **When this lands, confirm the
-  real function signature matches** — if it differs, `meeting_manager.py`
-  needs a one-line call-site update (the `try/except ImportError` block
-  at the top of the file, not scattered logic).
-- **`comms.whatsapp_notifier.WhatsAppNotifier`** — this is Sufiyan's own
-  Step 6, just not built yet in this session (numerical order). Same
-  pattern: a stub class returns `False` and logs. No merge risk here —
-  once Step 6 is built, delete the `try/except` stub block in
-  `meeting_manager.py` (or leave it; it'll just always succeed the `try`).
+  **Still doesn't exist.** `meeting_manager.py` falls back to a slugified
+  fake `https://cal.com/admin/<slug>` link — confirmed working in
+  `test_comms.py` (banner reports `tools.calendar_tool: MOCK`). **When
+  this lands, confirm the real function signature matches** — if it
+  differs, `meeting_manager.py` needs a one-line call-site update (the
+  `try/except ImportError` block at the top of the file, not scattered
+  logic).
+- **`comms.whatsapp_notifier.WhatsAppNotifier`** — **built this session
+  (Step 6).** The stub `try/except` block in `meeting_manager.py` now
+  always resolves to the real class with zero code changes needed —
+  confirmed by `test_comms.py`'s banner flipping from `STUB` to
+  `REAL module` with no edits to `meeting_manager.py` itself. The stub
+  block can be deleted as cleanup, but there's no urgency — it's dead
+  code, not a merge risk.
+
+### 4b. Step 7 isolation strategy — why `emails.py` / `meetings.py` don't touch shared files
+
+Per the user's explicit ask, `api/routes/emails.py` and
+`api/routes/meetings.py` are self-contained:
+
+- **Local Pydantic schemas** (`EmailSchema`, `SendEmailRequest`,
+  `SendEmailResponse` in `emails.py`; `MeetingSchema`,
+  `CreateMeetingRequest`, `CreateMeetingResponse` in `meetings.py`)
+  instead of importing from a shared `api/schemas.py` — that file doesn't
+  exist yet, and defining schemas locally means Wajeeh's own routes/
+  schemas can land in the same directory without either of us editing a
+  file the other owns. **Merge task once `api/schemas.py` exists:**
+  consider moving these up there, but it's optional — nothing breaks if
+  they stay local.
+- **`backend/api/routes/__init__.py` was not touched** — still an empty
+  package marker. No router-aggregation logic was added there, since
+  that's exactly the kind of shared file where two people's routers
+  would collide on the same lines.
+- **Each file only imports from `comms/`** (its own package) — no
+  cross-imports between `emails.py` and `meetings.py`, and neither
+  imports `webhook.py` or vice versa. Three independent files, each safe
+  to review/merge on its own.
+- **No router registration happens in these files** — `app.include_router(...)`
+  calls belong in `backend/main.py` (Wajeeh's, doesn't exist yet). See
+  Section 5's merge tasks for the exact lines needed.
 
 ## 5. Merge tasks (small, do these when main.py exists)
 
@@ -145,19 +188,29 @@ belong in `_deps.py`):
       `followup_scheduler.py`). Note: `@app.on_event("startup")` (as named
       in `sufiyan_work.md`) is deprecated in current FastAPI — prefer a
       `lifespan` context manager instead.
-- [ ] Register the webhook router in `backend/main.py`:
-      `app.include_router(webhook_router, prefix="/webhook")` per Step 7.
+- [ ] Register all three routers in `backend/main.py` (all built now —
+      Steps 4 and 7):
+      ```python
+      from api.routes.emails import router as emails_router
+      from api.routes.meetings import router as meetings_router
+      from api.routes.webhook import router as webhook_router
+
+      app.include_router(emails_router, prefix="/emails")
+      app.include_router(meetings_router, prefix="/meetings")
+      app.include_router(webhook_router, prefix="/webhook")
+      ```
 - [ ] Fold `backend/comms/requirements-comms.txt` into the root
-      `backend/requirements.txt` once it exists.
+      `backend/requirements.txt` once it exists. Now includes `fastapi`
+      (needed by the three route files) alongside `anthropic`, `resend`,
+      `apscheduler`, `twilio`.
 - [ ] Add the Section 3 env keys to `.env.example` and
       `docs/env_variables.md`.
-- [ ] Wire `backend/api/routes/emails.py` and `meetings.py` (Step 7) —
-      not built yet.
-- [ ] Once `backend/api/schemas.py` exists, consider moving
-      `webhook.py`'s inline payload parsing to a proper Pydantic model
-      there — it's inline for now since the file doesn't exist and the
-      handler must never fail regardless (see the docstring in
-      `webhook.py`).
+- [ ] Once `backend/api/schemas.py` exists, consider moving the schemas
+      defined locally in `emails.py`/`meetings.py`, and `webhook.py`'s
+      inline payload parsing, up there — see Section 4b. Not required;
+      the handler in `webhook.py` must never fail regardless, so its
+      lenient inline parsing may be intentional even after schemas.py
+      exists.
 
 ## 6. Ownership note — `backend/api/routes/` (flagging, not blocking)
 
@@ -165,10 +218,12 @@ belong in `_deps.py`):
 Person 3 (Wajeeh)'s folder. `sufiyan_work.md` explicitly grants Sufiyan
 "full ownership" of three specific files inside it: `emails.py`,
 `meetings.py`, `webhook.py`. This session followed `sufiyan_work.md` as
-the more specific, per-person assignment and created `webhook.py` there.
-Worth a quick team confirmation that this reading is correct before Step
-7 adds the other two files — if not, these three files should move under
-Wajeeh's ownership instead.
+the more specific, per-person assignment — all three files are now built
+(Steps 4 and 7 complete) under that reading. Worth a quick team
+confirmation that it's correct; if not, these three files should move
+under Wajeeh's ownership instead. Section 4b documents why this shouldn't
+cause a merge conflict either way — the files are self-contained and
+`routes/__init__.py` was never touched.
 
 ## 7. Known repo issues found during this pass (not comms-owned, flagging only)
 
