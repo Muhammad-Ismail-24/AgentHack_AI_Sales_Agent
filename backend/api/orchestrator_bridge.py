@@ -38,33 +38,7 @@ def is_available() -> bool:
     return _load("run_pipeline") is not None
 
 
-async def ingest_company(
-    *, session_id: str, text: str | None = None, filepath: str | None = None
-) -> dict[str, Any]:
-    """Send company info into RAG. Returns {company_name, chars, ingested}.
-
-    Falls back to a no-RAG result carrying the raw text so onboarding still
-    completes and the ICP step can proceed.
-    """
-    fn = _load("ingest_company")
-    if fn is None:
-        chars = len(text or "")
-        return {
-            "company_name": "Your Company",
-            "chars": chars,
-            "ingested": False,
-            "message": "RAG pipeline not available — company info stored locally.",
-        }
-
-    result = await fn(session_id=session_id, text=text, filepath=filepath)
-    if not isinstance(result, dict):
-        result = {"company_name": str(result)}
-    result.setdefault("ingested", True)
-    result.setdefault("company_name", "Your Company")
-    return result
-
-
-async def run_pipeline(*, session_id: str, company: dict, icp: dict) -> Any:
+async def run_pipeline(*, session_id: str, raw_input: str, input_type: str, icp: dict) -> Any:
     """Run the full LangGraph pipeline. Raises if the orchestrator is missing."""
     fn = _load("run_pipeline")
     if fn is None:
@@ -74,8 +48,8 @@ async def run_pipeline(*, session_id: str, company: dict, icp: dict) -> Any:
         )
     return await fn(
         session_id=session_id,
-        raw_input=company.get("text", ""),
-        input_type="text",
+        raw_input=raw_input,
+        input_type=input_type,
         icp_raw=icp,
     )
 
