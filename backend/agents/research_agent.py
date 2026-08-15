@@ -31,10 +31,13 @@ async def run(state: dict) -> dict:
                 domain = _domain_from_url(url)
                 company_name = lead.get("company_name", domain)
 
+                import asyncio
                 scraped_text = await web_scraper.scrape(url)
-                apollo_data = apollo_enrichment.enrich_company(domain)
-                news_snippets = tavily_search.search(
-                    f"{company_name} funding OR news OR expansion 2024", max_results=5
+                apollo_data = await asyncio.to_thread(apollo_enrichment.enrich_company, domain)
+                news_snippets = await asyncio.to_thread(
+                    tavily_search.search,
+                    f"{company_name} funding OR news OR expansion 2024",
+                    max_results=5,
                 )
 
                 researched_leads.append(

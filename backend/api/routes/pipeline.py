@@ -27,12 +27,12 @@ router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 _running: dict[str, asyncio.Task] = {}
 
 
-async def _run_and_persist(session_id: str, company: dict, icp: dict) -> None:
+async def _run_and_persist(session_id: str, raw_input: str, input_type: str, icp: dict) -> None:
     """Background task: run the graph, then write the results to Firestore."""
     try:
         short_term_memory.set_pipeline_stage(session_id, "Discovering leads")
         state = await orchestrator_bridge.run_pipeline(
-            session_id=session_id, company=company, icp=icp
+            session_id=session_id, raw_input=raw_input, input_type=input_type, icp=icp
         )
 
         if isinstance(state, dict):
@@ -81,9 +81,12 @@ async def start_pipeline(payload: PipelineStartRequest) -> PipelineStartResponse
             ),
         )
 
+    raw_input = company.get("raw_input", "")
+    input_type = company.get("input_type", "text")
+
     short_term_memory.set_pipeline_stage(session_id, "starting")
     _running[session_id] = asyncio.create_task(
-        _run_and_persist(session_id, company, icp)
+        _run_and_persist(session_id, raw_input, input_type, icp)
     )
 
     log.info("pipeline started for session %s", session_id)

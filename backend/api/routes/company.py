@@ -47,27 +47,23 @@ async def upload_company_file(file: UploadFile = File(...)) -> CompanyUploadResp
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-    result = await orchestrator_bridge.ingest_company(
-        session_id=session_id, text=text, filepath=str(dest)
-    )
-
     short_term_memory.set_company(
         session_id,
         {
-            "company_name": result.get("company_name"),
-            "text": text,
+            "company_name": "Your Company",
+            "raw_input": text,
+            "input_type": "pdf",
             "source": file.filename,
-            "ingested": result.get("ingested", False),
         },
     )
 
     log.info("ingested %s for session %s", file.filename, session_id)
     return CompanyUploadResponse(
         session_id=session_id,
-        company_name=result.get("company_name", "Your Company"),
+        company_name="Your Company",
         status="ingested",
         chars_ingested=len(text),
-        message=result.get("message"),
+        message=None,
     )
 
 
@@ -82,16 +78,15 @@ async def submit_company_text(payload: CompanyTextRequest) -> CompanyUploadRespo
         )
 
     session_id = str(uuid.uuid4())
-    result = await orchestrator_bridge.ingest_company(session_id=session_id, text=text)
-
-    company_name = payload.company_name or result.get("company_name", "Your Company")
+    company_name = payload.company_name or "Your Company"
+    
     short_term_memory.set_company(
         session_id,
         {
             "company_name": company_name,
-            "text": text,
+            "raw_input": text,
+            "input_type": "text",
             "source": "pasted text",
-            "ingested": result.get("ingested", False),
         },
     )
 
@@ -101,5 +96,5 @@ async def submit_company_text(payload: CompanyTextRequest) -> CompanyUploadRespo
         company_name=company_name,
         status="ingested",
         chars_ingested=len(text),
-        message=result.get("message"),
+        message=None,
     )

@@ -49,15 +49,16 @@ async def run(state: dict) -> dict:
         seen_urls: set[str] = set()
         raw_leads: list[dict] = []
 
+        import asyncio
         for q in queries:
             try:
-                results = tavily_search.search(q, max_results=10)
+                results = await asyncio.to_thread(tavily_search.search, q, max_results=10)
                 if not results:
                     logger.warning(f"discovery_agent: Tavily empty for '{q}', trying Serper")
-                    results = serper_search.search(q, max_results=10)
+                    results = await asyncio.to_thread(serper_search.search, q, max_results=10)
             except Exception as e:
                 logger.warning(f"discovery_agent: Tavily failed for '{q}' ({e}), trying Serper")
-                results = serper_search.search(q, max_results=10)
+                results = await asyncio.to_thread(serper_search.search, q, max_results=10)
 
             for r in results:
                 url = r.get("url", "")
