@@ -40,3 +40,4 @@ data/cache/
 env
 *serviceAccount*.json
 firebase-key*.json
+firebase-service-account.json

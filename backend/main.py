@@ -2,10 +2,9 @@
 
     cd backend && uvicorn main:app --reload --port 8000
 
-Routers owned by Ismail (agents) and Sufiyan (comms) are registered
-defensively: if their module is missing or mid-refactor on this branch, the
-app logs it and starts anyway rather than refusing to boot. That way nobody's
-branch can break everybody's demo.
+All three teammates' routers are registered here. Registration is still
+defensive — a router that fails to import logs a warning and the app starts
+without it, so one broken module cannot take the whole demo down.
 """
 
 from contextlib import asynccontextmanager
@@ -13,52 +12,42 @@ from importlib import import_module
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 
 from api.schemas import HealthResponse
 from config.settings import settings
-from db.database import SessionLocal, close_db, init_db
+from db import firestore as fs
 from utils.logger import get_logger
 
 log = get_logger("main")
 
-# Routers everyone relies on. (module path, attribute, description)
-CORE_ROUTERS = [
-    ("api.routes.company", "router", "company"),
-    ("api.routes.icp", "router", "icp"),
-    ("api.routes.pipeline", "router", "pipeline"),
-    ("api.routes.leads", "router", "leads"),
-]
-
-# Teammates' routers — optional at import time.
-OPTIONAL_ROUTERS = [
-    ("api.routes.emails", "router", "emails (Sufiyan)"),
-    ("api.routes.meetings", "router", "meetings (Sufiyan)"),
-    ("api.routes.webhook", "router", "webhook (Sufiyan)"),
-]
-
-# Registered last so any real handler above wins the path match.
-FALLBACK_ROUTERS = [
-    ("api.routes.dashboard", "router", "dashboard fallbacks"),
+ROUTERS = [
+    # (module, attribute, label, prefix)
+    ("api.routes.company", "router", "company", None),
+    ("api.routes.icp", "router", "icp", None),
+    ("api.routes.pipeline", "router", "pipeline", None),
+    ("api.routes.leads", "router", "leads", None),
+    # Sufiyan's routers define their paths without a prefix, so they are
+    # mounted under one here.
+    ("api.routes.emails", "router", "emails", "/emails"),
+    ("api.routes.meetings", "router", "meetings", "/meetings"),
+    ("api.routes.webhook", "router", "webhook", "/webhook"),
+    # Registered last: only fills gaps the routers above do not cover.
+    ("api.routes.dashboard", "router", "dashboard", None),
 ]
 
 
-def _register(app: FastAPI, module_path: str, attr: str, label: str, *, required: bool) -> bool:
+def _register(app: FastAPI, module_path: str, attr: str, label: str, prefix: str | None) -> None:
     try:
         module = import_module(module_path)
-        app.include_router(getattr(module, attr))
+        router = getattr(module, attr)
+        app.include_router(router, prefix=prefix) if prefix else app.include_router(router)
         log.info("registered router: %s", label)
-        return True
-    except Exception as exc:  # noqa: BLE001 - a missing teammate module is expected
-        if required:
-            log.error("could not register required router %s: %s", label, exc)
-            raise
+    except Exception as exc:  # noqa: BLE001 - never let one router stop startup
         log.warning("skipping router %s (%s)", label, exc)
-        return False
 
 
 def _start_followup_scheduler() -> None:
-    """Start Sufiyan's APScheduler job, if that module has landed."""
+    """Start Sufiyan's APScheduler jobs."""
     try:
         from comms.followup_scheduler import start_scheduler
     except Exception as exc:  # noqa: BLE001
@@ -68,7 +57,7 @@ def _start_followup_scheduler() -> None:
     try:
         start_scheduler()
         log.info("follow-up scheduler started")
-    except Exception:  # noqa: BLE001 - never let a scheduler fault block startup
+    except Exception:  # noqa: BLE001
         log.exception("follow-up scheduler failed to start")
 
 
@@ -85,12 +74,18 @@ def _stop_followup_scheduler() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup and shutdown. (on_event is deprecated — this replaces it.)"""
+    """Startup and shutdown."""
     log.info("starting AgentHack backend")
-    try:
-        await init_db()
-    except Exception:  # noqa: BLE001 - surface the error but keep /health alive
-        log.exception("database init failed — check DATABASE_URL")
+
+    # Connect eagerly so a credentials problem shows up in the log at boot
+    # rather than as a surprise on the first request.
+    if fs.is_available():
+        log.info("firestore connected")
+    else:
+        log.error(
+            "firestore is NOT connected — set FIREBASE_SERVICE_ACCOUNT_PATH in "
+            ".env. The API will start but every data route will return 503."
+        )
 
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     _start_followup_scheduler()
@@ -99,7 +94,6 @@ async def lifespan(app: FastAPI):
 
     log.info("shutting down")
     _stop_followup_scheduler()
-    await close_db()
 
 
 app = FastAPI(
@@ -108,7 +102,7 @@ app = FastAPI(
         "Ingests a company profile, finds and researches matching leads, scores "
         "them, writes and sends outreach, classifies replies, and books meetings."
     ),
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
 
@@ -121,26 +115,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for module_path, attr, label in CORE_ROUTERS:
-    _register(app, module_path, attr, label, required=True)
-
-for module_path, attr, label in OPTIONAL_ROUTERS:
-    _register(app, module_path, attr, label, required=False)
-
-for module_path, attr, label in FALLBACK_ROUTERS:
-    _register(app, module_path, attr, label, required=False)
+for module_path, attr, label, prefix in ROUTERS:
+    _register(app, module_path, attr, label, prefix)
 
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
-    """Liveness check. Reports database reachability without failing on it."""
-    db_status = "ok"
-    try:
-        async with SessionLocal() as session:
-            await session.execute(text("SELECT 1"))
-    except Exception as exc:  # noqa: BLE001
-        db_status = f"unreachable: {type(exc).__name__}"
+    """Liveness check. Reports Firestore reachability without failing on it."""
+    import asyncio
 
+    db_status = await asyncio.to_thread(fs.health)
     return HealthResponse(status="ok", database=db_status, version=app.version)
 
 

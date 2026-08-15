@@ -7,6 +7,8 @@ pydantic-settings==2.7.1
 
 # ── Database (Firestore) ────────────────────────────────────────────
 firebase-admin==6.6.0
+# Pinned: google-cloud-firestore >=2.20 requires protobuf >=6, which breaks
+# google-generativeai (needs <6). Do not bump without checking both.
 google-cloud-firestore==2.19.0
 
 # ── Cache / short-term memory ───────────────────────────────────────
@@ -23,8 +25,13 @@ langgraph==0.2.60
 # ── RAG / vector store ──────────────────────────────────────────────
 qdrant-client==1.12.1
 langchain-qdrant==0.2.0
-fastembed==0.5.1
 pymupdf==1.25.1
+
+# Shared transitive pins. qdrant-client pulls the newest grpcio-tools, which
+# drags in protobuf 7 and silently breaks the Gemini SDK at runtime. These two
+# lines are what keep Firestore, Gemini, and Qdrant installable together.
+grpcio-tools==1.68.1
+protobuf>=5.26.1,<6
 
 # ── Research tools ──────────────────────────────────────────────────
 tavily-python==0.5.0

@@ -5,8 +5,7 @@ The frontend polls the status endpoint every 3 seconds while a run is live.
 
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException
 
 from api import orchestrator_bridge
 from api.schemas import (
@@ -14,8 +13,7 @@ from api.schemas import (
     PipelineStartResponse,
     PipelineStatusResponse,
 )
-from db import crud
-from db.database import get_db, session_scope
+from db import acrud
 from db.models import ACTIVE_STAGES
 from memory.long_term import long_term_memory
 from memory.short_term import short_term_memory
@@ -24,15 +22,13 @@ from utils.logger import get_logger
 log = get_logger(__name__)
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
-TERMINAL_STAGES = {"complete", "idle", "failed"}
-
 # Keeps a reference to each running task so it is not garbage collected
 # mid-run, and so a duplicate /start is rejected instead of racing.
 _running: dict[str, asyncio.Task] = {}
 
 
 async def _run_and_persist(session_id: str, company: dict, icp: dict) -> None:
-    """Background task: run the graph, then write the results to the DB."""
+    """Background task: run the graph, then write the results to Firestore."""
     try:
         short_term_memory.set_pipeline_stage(session_id, "Discovering leads")
         state = await orchestrator_bridge.run_pipeline(
@@ -43,8 +39,7 @@ async def _run_and_persist(session_id: str, company: dict, icp: dict) -> None:
             short_term_memory.set_pipeline_state(session_id, state)
             leads = state.get("outreach_queue") or state.get("qualified_leads") or []
             if leads:
-                async with session_scope() as db:
-                    await long_term_memory.remember_leads(db, leads, session_id)
+                await long_term_memory.remember_leads(leads, session_id)
 
         short_term_memory.set_pipeline_stage(session_id, "complete")
         log.info("pipeline complete for session %s", session_id)
@@ -96,9 +91,7 @@ async def start_pipeline(payload: PipelineStartRequest) -> PipelineStartResponse
 
 
 @router.get("/status/{session_id}", response_model=PipelineStatusResponse)
-async def get_pipeline_status(
-    session_id: str, db: AsyncSession = Depends(get_db)
-) -> PipelineStatusResponse:
+async def get_pipeline_status(session_id: str) -> PipelineStatusResponse:
     """Current stage plus live lead counts. Safe to poll every few seconds."""
     stage = short_term_memory.get_pipeline_stage(session_id) or "idle"
     state = short_term_memory.get_pipeline_state(session_id) or {}
@@ -106,7 +99,7 @@ async def get_pipeline_status(
     task = _running.get(session_id)
     is_running = task is not None and not task.done()
 
-    stage_counts = await crud.count_leads_by_stage(db, session_id)
+    stage_counts = await acrud.count_leads_by_stage(session_id)
 
     return PipelineStatusResponse(
         session_id=session_id,

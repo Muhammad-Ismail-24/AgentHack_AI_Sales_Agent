@@ -1,20 +1,18 @@
-"""Load the demo seed data into the database.
+"""Load the demo seed data into Firestore.
 
     python backend/load_seeds.py
 
-Wipes every table first, so this is a development and demo tool only. Runs
-synchronously — no event loop, no FastAPI, just the database.
+Wipes every collection first, so this is a development and demo tool only.
 
 Reads from data/seeds/:
-    leads_seed.json     12 pre-researched leads with contacts   (Wajeeh)
-    emails_seed.json    outreach already sent                   (Wajeeh)
-    replies_seed.json   planted replies for the inbox demo      (Sufiyan)
-    meetings_seed.json  a booked meeting with its briefing      (Sufiyan)
+    leads_seed.json     12 pre-researched leads with contacts
+    emails_seed.json    outreach already sent
+    replies_seed.json   planted replies for the inbox demo
+    meetings_seed.json  a booked meeting with its briefing
 
-The two files Sufiyan owns are optional — if they are missing the script says
-so and loads everything else. Relative dates (`sent_days_ago`,
-`scheduled_in_days`) are resolved at load time so the demo is always "3 days
-ago" rather than a date that goes stale.
+Relative dates (`sent_days_ago`, `scheduled_in_days`) are resolved at load
+time so the demo always reads as "3 days ago" rather than a date that goes
+stale.
 """
 
 import json
@@ -27,14 +25,14 @@ if str(BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(BACKEND_DIR))
 
 from config.settings import settings  # noqa: E402
-from db.database import Base, SyncSessionLocal, sync_engine  # noqa: E402
+from db import crud, firestore as fs  # noqa: E402
 from db.models import (  # noqa: E402
-    Contact,
-    Email,
-    Lead,
-    Meeting,
-    PipelineEvent,
-    Reply,
+    contact_doc,
+    email_doc,
+    event_doc,
+    lead_doc,
+    meeting_doc,
+    reply_doc,
 )
 from utils.logger import get_logger  # noqa: E402
 
@@ -43,8 +41,7 @@ log = get_logger("load_seeds")
 SEED_DIR = Path(settings.SEED_DIR)
 SESSION_ID = "demo-session"
 
-# A reply's classification implies what the human should do next. Keeping this
-# here rather than in the seed file means Sufiyan's file stays untouched.
+# A reply's classification implies what the human should do next.
 NEXT_ACTIONS = {
     "Meeting Requested": "Send a Cal.com booking link today.",
     "Interested": "Send the case study deck and propose two times.",
@@ -66,7 +63,6 @@ def _now() -> datetime:
 
 
 def _read(name: str) -> list | None:
-    """Load a seed file, or return None if it isn't on this branch yet."""
     path = SEED_DIR / name
     if not path.exists():
         log.warning("%s not found — skipping", name)
@@ -77,184 +73,146 @@ def _read(name: str) -> list | None:
         raise SystemExit(f"{name} is not valid JSON: {exc}") from exc
 
 
-def clear_all(db) -> None:
-    """Delete every row. Children first so foreign keys stay satisfied."""
-    for model in (PipelineEvent, Reply, Meeting, Email, Contact, Lead):
-        db.query(model).delete()
-    db.commit()
-    log.info("cleared existing data")
+def _write(collection: str, doc: dict) -> dict:
+    fs.collection(collection).document(doc["id"]).set(doc)
+    return doc
 
 
-def load_leads(db, rows: list[dict]) -> tuple[int, int]:
-    """Insert leads with their contacts and an opening timeline event."""
+def load_leads(rows: list[dict]) -> tuple[int, int]:
     lead_count = 0
     contact_count = 0
 
     for row in rows:
+        row = dict(row)
         contacts = row.pop("contacts", [])
+        row["session_id"] = SESSION_ID
 
-        lead = Lead(
-            id=row["id"],
-            company_name=row["company_name"],
-            website=row.get("website"),
-            industry=row.get("industry"),
-            location=row.get("location"),
-            employee_count=row.get("employee_count"),
-            pipeline_stage=row.get("pipeline_stage", "Discovered"),
-            lead_score=row.get("lead_score"),
-            score_explanation=row.get("score_explanation"),
-            recommended_service=row.get("recommended_service"),
-            pitch_angle=row.get("pitch_angle"),
-            icp_fit=row.get("icp_fit"),
-            research_summary=row.get("research_summary"),
-            apollo_data=row.get("apollo_data"),
-            session_id=SESSION_ID,
-        )
-        db.add(lead)
+        lead = lead_doc(row, doc_id=row["id"])
+        _write(fs.LEADS, lead)
         lead_count += 1
 
         for index, raw in enumerate(contacts):
-            db.add(
-                Contact(
-                    id=f"{lead.id}_contact_{index + 1}",
-                    lead_id=lead.id,
-                    name=raw.get("name"),
-                    role=raw.get("role"),
-                    email=raw.get("email"),
-                    linkedin_url=raw.get("linkedin_url"),
-                    is_primary=raw.get("is_primary", index == 0),
-                )
+            contact = contact_doc(
+                raw, lead["id"], doc_id=f"{lead['id']}_contact_{index + 1}"
             )
+            contact["is_primary"] = raw.get("is_primary", index == 0)
+            _write(fs.CONTACTS, contact)
             contact_count += 1
 
-        # Give every lead a plausible timeline rather than a single blank row.
-        db.add(
-            PipelineEvent(
-                lead_id=lead.id,
-                from_stage=None,
-                to_stage="Discovered",
-                reason="Lead discovered",
+        # Give every lead a plausible timeline rather than one blank row.
+        _write(
+            fs.PIPELINE_EVENTS,
+            event_doc(
+                lead["id"], None, "Discovered", "Lead discovered",
                 created_at=_now() - timedelta(days=7),
-            )
+            ),
         )
-        if lead.pipeline_stage != "Discovered":
-            db.add(
-                PipelineEvent(
-                    lead_id=lead.id,
-                    from_stage="Discovered",
-                    to_stage=lead.pipeline_stage,
-                    reason=lead.score_explanation
-                    and f"Scored {lead.lead_score}/100"
-                    or "Advanced by pipeline",
+        if lead["pipeline_stage"] != "Discovered":
+            reason = (
+                f"Scored {lead['lead_score']}/100"
+                if lead.get("lead_score") is not None
+                else "Advanced by pipeline"
+            )
+            _write(
+                fs.PIPELINE_EVENTS,
+                event_doc(
+                    lead["id"], "Discovered", lead["pipeline_stage"], reason,
                     created_at=_now() - timedelta(days=5),
-                )
+                ),
             )
 
-    db.commit()
     return lead_count, contact_count
 
 
-def load_emails(db, rows: list[dict]) -> int:
-    """Insert sent outreach, resolving contact_email to a real contact id."""
+def load_emails(rows: list[dict]) -> int:
     count = 0
 
     for row in rows:
         contact_id = None
         if row.get("contact_email"):
-            contact = (
-                db.query(Contact)
-                .filter(
-                    Contact.lead_id == row["lead_id"],
-                    Contact.email == row["contact_email"],
-                )
-                .first()
-            )
-            if contact is None:
+            for contact in crud.get_contacts_for_lead(row["lead_id"]):
+                if (contact.get("email") or "").lower() == row["contact_email"].lower():
+                    contact_id = contact["id"]
+                    break
+            if contact_id is None:
                 log.warning(
                     "no contact %s on %s — email will have no contact",
-                    row["contact_email"],
-                    row["lead_id"],
+                    row["contact_email"], row["lead_id"],
                 )
-            else:
-                contact_id = contact.id
 
         sent_at = _now() - timedelta(days=row.get("sent_days_ago", 3))
+        status = row.get("status", "sent")
 
-        db.add(
-            Email(
-                id=row["id"],
+        _write(
+            fs.EMAILS,
+            email_doc(
                 lead_id=row["lead_id"],
                 contact_id=contact_id,
                 subject=row["subject"],
                 body=row["body"],
-                status=row.get("status", "sent"),
-                sent_at=sent_at if row.get("status", "sent") != "draft" else None,
+                status=status,
+                sent_at=sent_at if status != "draft" else None,
+                doc_id=row["id"],
                 created_at=sent_at,
-            )
+            ),
         )
         count += 1
 
-    db.commit()
     return count
 
 
-def load_replies(db, rows: list[dict]) -> int:
-    """Attach planted replies to the email they answer, by subject match."""
+def load_replies(rows: list[dict]) -> int:
     count = 0
 
     for row in rows:
-        # Sufiyan's file stores "Re: <original subject>".
+        # The seed stores "Re: <original subject>".
         subject = row["subject"]
         original = subject[3:].strip() if subject.lower().startswith("re:") else subject
 
-        email = (
-            db.query(Email)
-            .filter(Email.lead_id == row["lead_id"], Email.subject == original)
-            .first()
+        email = next(
+            (
+                e
+                for e in crud.get_emails_for_lead(row["lead_id"])
+                if (e.get("subject") or "") == original
+            ),
+            None,
         )
         if email is None:
             log.warning(
                 "no sent email on %s matching %r — skipping reply",
-                row["lead_id"],
-                original,
+                row["lead_id"], original,
             )
             continue
 
         classification = row.get("expected_classification") or row.get("classification")
 
-        db.add(
-            Reply(
-                email_id=email.id,
+        _write(
+            fs.REPLIES,
+            reply_doc(
+                email_id=email["id"],
                 raw_body=row["body"],
                 classification=classification,
                 summary=SUMMARIES.get(classification),
                 next_action=NEXT_ACTIONS.get(classification),
                 received_at=_now() - timedelta(days=1),
-            )
+            ),
         )
-        email.status = "replied"
+        fs.collection(fs.EMAILS).document(email["id"]).update({"status": "replied"})
         count += 1
 
-    db.commit()
     return count
 
 
-def load_meetings(db, rows: list[dict]) -> int:
-    """Insert booked meetings, matching the contact by name where given."""
+def load_meetings(rows: list[dict]) -> int:
     count = 0
 
     for row in rows:
         contact_id = None
         if row.get("contact_name"):
-            contact = (
-                db.query(Contact)
-                .filter(
-                    Contact.lead_id == row["lead_id"],
-                    Contact.name == row["contact_name"],
-                )
-                .first()
-            )
-            contact_id = contact.id if contact else None
+            for contact in crud.get_contacts_for_lead(row["lead_id"]):
+                if contact.get("name") == row["contact_name"]:
+                    contact_id = contact["id"]
+                    break
 
         if row.get("scheduled_at"):
             scheduled_at = datetime.fromisoformat(
@@ -264,27 +222,25 @@ def load_meetings(db, rows: list[dict]) -> int:
             # broken — pull it forward rather than showing a stale meeting.
             if scheduled_at < _now():
                 log.warning(
-                    "%s meeting was in the past — moving it to tomorrow",
-                    row["lead_id"],
+                    "%s meeting was in the past — moving it to tomorrow", row["lead_id"]
                 )
                 scheduled_at = _now() + timedelta(days=1)
         else:
             scheduled_at = _now() + timedelta(days=row.get("scheduled_in_days", 3))
 
-        db.add(
-            Meeting(
+        _write(
+            fs.MEETINGS,
+            meeting_doc(
                 lead_id=row["lead_id"],
                 contact_id=contact_id,
                 meeting_link=row.get("meeting_link"),
                 scheduled_at=scheduled_at,
                 briefing=row.get("briefing"),
-                admin_notified=False,
                 status=row.get("status", "confirmed"),
-            )
+            ),
         )
         count += 1
 
-    db.commit()
     return count
 
 
@@ -295,27 +251,23 @@ def main() -> None:
     if leads is None:
         raise SystemExit("leads_seed.json is required — nothing to load.")
 
-    Base.metadata.create_all(sync_engine)
+    try:
+        fs.get_client()
+    except fs.FirestoreUnavailable as exc:
+        raise SystemExit(f"\n{exc}\n") from exc
 
-    with SyncSessionLocal() as db:
-        clear_all(db)
+    crud.clear_all()
 
-        lead_count, contact_count = load_leads(db, leads)
+    lead_count, contact_count = load_leads(leads)
 
-        email_count = 0
-        emails = _read("emails_seed.json")
-        if emails:
-            email_count = load_emails(db, emails)
+    emails = _read("emails_seed.json")
+    email_count = load_emails(emails) if emails else 0
 
-        reply_count = 0
-        replies = _read("replies_seed.json")
-        if replies:
-            reply_count = load_replies(db, replies)
+    replies = _read("replies_seed.json")
+    reply_count = load_replies(replies) if replies else 0
 
-        meeting_count = 0
-        meetings = _read("meetings_seed.json")
-        if meetings:
-            meeting_count = load_meetings(db, meetings)
+    meetings = _read("meetings_seed.json")
+    meeting_count = load_meetings(meetings) if meetings else 0
 
     print(
         f"Seed data loaded: {lead_count} leads, {contact_count} contacts, "
