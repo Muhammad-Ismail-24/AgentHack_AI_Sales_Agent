@@ -55,6 +55,28 @@ Respond with ONLY valid JSON matching this exact schema, no extra text:
 }}"""
 
 
+BATCH_FILTER_PROMPT = """You are a fast B2B lead qualifier. You are given a numbered
+list of candidate companies (name + short snippet) and the target ICP. For
+EACH company, decide quickly whether it could plausibly be a fit for the ICP.
+
+Be aggressive at filtering — say NO quickly. This is a cheap first pass before
+expensive research, so only keep companies that are a clear, plausible fit.
+When a snippet gives too little information to judge, prefer NO over guessing.
+
+Target ICP: {icp}
+
+Candidate companies:
+{leads_block}
+
+Respond with ONLY a valid JSON array, no extra text. It MUST have exactly
+{lead_count} objects, one per company, IN THE SAME ORDER as the numbered list
+above:
+[
+  {{"is_potential_fit": <true or false>, "reason": "<one short sentence>"}},
+  ...
+]"""
+
+
 QUALIFICATION_PROMPT = """You are a senior sales analyst. Score this lead from 0-100
 based on how well it matches the ICP fit, any buying signals in the research,
 company size fit, and how well their apparent problems match what we sell. Be
