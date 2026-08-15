@@ -1,5 +1,11 @@
 # Conflicts / Merge Checklist — Comms Layer → Wajeeh's Backend
 
+**Status: Sufiyan's section (sufiyan_work.md, all 9 steps) is functionally
+complete.** `python backend/test_comms.py` runs all 9 steps with real
+assertions and exits 0. See Section 8 for the full deliverable checklist.
+What remains is entirely on Wajeeh's and Ismail's side — this file is the
+merge guide for when their branches land.
+
 Sufiyan's comms layer (`backend/comms/`) was built before `backend/config/`,
 `backend/utils/`, `backend/db/`, and `backend/main.py` existed. To avoid
 blocking, it runs against a local shim (`backend/comms/_shim.py` +
@@ -26,8 +32,10 @@ modules are stable, to stop anyone accidentally depending on the fakes.
 ## 2. CRUD contract — what `backend/db/crud.py` must implement
 
 The shim implements these exact signatures, exercised end-to-end by
-`test_comms.py` through Steps 1-7. Wajeeh's real `crud.py` should match
-them (or the comms layer needs small call-site updates — better to match).
+`test_comms.py` across all 9 steps, with real assertions (not just
+prose output) on every function's behavior. Wajeeh's real `crud.py`
+should match them (or the comms layer needs small call-site updates —
+better to match).
 
 ```python
 def create_email(lead_id: str, contact_id: str, subject: str, body: str,
@@ -128,6 +136,10 @@ and actually calls the Cal.com API, it will be the one reading this key.
   `sufiyan_work.md`'s spec) are used verbatim. See Section 4a — the
   `meeting_manager.py` stub for this module is now dead code (the real
   import always succeeds) but harmless to leave in place.
+- **`docs/api_reference.md`** — created (didn't exist). Contains only the
+  Emails / Meetings / Webhook sections (Sufiyan's). Ends with an explicit
+  "add your sections below this line" marker for Ismail and Wajeeh —
+  same low-conflict pattern as `prompts.py`'s additive-constants approach.
 
 ### 4a. Borrowed dependencies beyond config/utils/db
 
@@ -152,6 +164,30 @@ settings/logging/DB:
   `REAL module` with no edits to `meeting_manager.py` itself. The stub
   block can be deleted as cleanup, but there's no urgency — it's dead
   code, not a merge risk.
+
+### 4c. Seed data is now live, not inert (Step 8 completion)
+
+`backend/comms/_shim.py`'s `_ShimCRUD.__init__` now calls a new
+`_seed_demo_meeting()` method that reads `data/seeds/meetings_seed.json`
+at process startup and loads it directly into `self._meetings` — resolving
+each entry's `lead_id` against the shim's fixture leads/contacts,
+parsing `scheduled_at` from ISO 8601, and copying `briefing` verbatim.
+Best-effort: a missing or malformed seed file logs a warning and leaves
+the meeting list empty rather than raising, since this runs at import
+time and must never crash the process.
+
+**Why this matters for the merge:** when Wajeeh's real `db/crud.py` and
+seed-loading path exist, the equivalent behavior — reading
+`data/seeds/*.json` into the real database at demo setup — needs to live
+somewhere (a migration, a seed script, or FastAPI startup code). This
+shim behavior is the reference implementation for what "seeded" should
+mean: `GET /meetings` should show AlphaLogistics's pre-briefed meeting
+without any live action being taken first. `replies_seed.json` is
+deliberately **not** pre-loaded the same way — it's an input fixture for
+testing the classifier/webhook path, not existing state, so loading it
+as already-processed replies would be semantically wrong (see how
+`test_comms.py` Steps 2 and 8 use it: as raw input to `classify()`, and as
+a schema-validation target, never as pre-existing DB rows).
 
 ### 4b. Step 7 isolation strategy — why `emails.py` / `meetings.py` don't touch shared files
 
@@ -201,8 +237,14 @@ Per the user's explicit ask, `api/routes/emails.py` and
       ```
 - [ ] Fold `backend/comms/requirements-comms.txt` into the root
       `backend/requirements.txt` once it exists. Now includes `fastapi`
-      (needed by the three route files) alongside `anthropic`, `resend`,
-      `apscheduler`, `twilio`.
+      (needed by the three route files) and `httpx2` (needed only by
+      `test_comms.py`'s Step 7 webhook check, via
+      `fastapi.testclient.TestClient` — **not** plain `httpx`, which
+      current `starlette.testclient` deprecates in favor of `httpx2`),
+      alongside `anthropic`, `resend`, `apscheduler`, `twilio`. If
+      `httpx2` doesn't make sense as a production dependency, it's fine
+      to keep it dev/test-only rather than folding it into the main
+      `requirements.txt`.
 - [ ] Add the Section 3 env keys to `.env.example` and
       `docs/env_variables.md`.
 - [ ] Once `backend/api/schemas.py` exists, consider moving the schemas
@@ -225,7 +267,67 @@ under Wajeeh's ownership instead. Section 4b documents why this shouldn't
 cause a merge conflict either way — the files are self-contained and
 `routes/__init__.py` was never touched.
 
-## 7. Known repo issues found during this pass (not comms-owned, flagging only)
+## 7. Sufiyan's deliverable checklist — final status
+
+Every item from `sufiyan_work.md`'s checklist, verified by
+`backend/test_comms.py`'s 9-step assertion suite (`python
+backend/test_comms.py`, exits 0):
+
+- [x] `backend/comms/email_sender.py` — sends via Resend, or logs +
+      records in mock mode when `RESEND_API_KEY` is unset. Verified Step 1.
+- [x] `backend/comms/response_classifier.py` — classifies all 9
+      categories correctly (3 via live/mock classification against seed
+      replies, all 9 via direct `decide_next_action()` routing checks).
+      Verified Step 2.
+- [x] `backend/comms/followup_scheduler.py` — 3-day follow-up logic
+      proven with a real positive-path test (a synthetically backdated
+      email is detected, followed up, and no longer re-qualifies
+      afterward) — not just an always-zero smoke check. Runs via
+      APScheduler (`start_scheduler()`), not yet registered in
+      `main.py` (doesn't exist — see Section 5). Verified Step 3.
+- [x] `backend/comms/email_reader.py` — matches inbound replies by
+      subject or contact email, updates email status, classifies, and
+      dispatches; also verified to cleanly report `matched: False` for
+      an unrecognized sender rather than erroring. Verified Step 4.
+- [x] `backend/comms/meeting_manager.py` — generates a link (mock,
+      pending Ismail's `calendar_tool.py` — Section 4a), records the
+      meeting, emails the prospect, and notifies the admin on WhatsApp;
+      `send_pre_meeting_reminder()` also verified to flip
+      `admin_notified`. Verified Step 5.
+- [x] `backend/comms/whatsapp_notifier.py` — sends meeting-confirmed and
+      30-minute pre-meeting briefing messages; confirmed
+      `meeting_manager.py` is using the real module, not its Step 6
+      stub. Verified Step 6.
+- [x] `backend/api/routes/emails.py` — `GET` + `POST` both verified via
+      direct calls. Verified Step 7.
+- [x] `backend/api/routes/meetings.py` — `GET` + `POST` both verified
+      via direct calls. Verified Step 7.
+- [x] `backend/api/routes/webhook.py` — inbound reply webhook verified
+      via a genuine in-process HTTP roundtrip (FastAPI `TestClient`),
+      not just a direct function call. Verified Step 7.
+- [x] `data/seeds/replies_seed.json` — 3 replies with correct
+      classifications; schema and `lead_id`-resolvability verified.
+      Verified Step 8.
+- [x] `data/seeds/meetings_seed.json` — 1 complete meeting with
+      briefing; schema verified, and confirmed to be actually loaded
+      into the running system at startup (Section 4c), not just an
+      inert file. Verified Step 8.
+- [x] `backend/test_comms.py` — runs clean with visible output; now an
+      assertion-based suite (not just prose prints) that catches
+      per-step failures, prints a PASS/FAIL summary table, and exits
+      non-zero if anything actually failed. This is Step 9 and also
+      verifies Steps 1-8.
+- [x] `docs/api_reference.md` — created with the Emails, Meetings, and
+      Webhook sections.
+
+**What's still open and not fixable from this side:** Ismail's
+`backend/tools/calendar_tool.py` (Section 4a — meeting links are mocked
+until it lands) and everything in Section 5 (`main.py` doesn't exist yet,
+so nothing is registered/running as a live server — every check above
+runs by calling the actual functions/ASGI routes directly, not through a
+deployed app).
+
+## 8. Known repo issues found during this pass (not comms-owned, flagging only)
 
 - **`.gitignore` will silently swallow `.env.example`.** The current
   pattern is `.env.*`, which matches `.env.example` too. `.env.example` is

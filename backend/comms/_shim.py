@@ -16,12 +16,17 @@ comms/*.py module.
 Column names below mirror .claude/skills/database-schema.md.
 """
 
+import json
 import logging
 import os
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Optional
+
+# backend/comms/_shim.py -> backend/comms -> backend -> repo root
+_SEEDS_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "seeds"
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +151,60 @@ class _ShimCRUD:
         self._replies: list[dict] = []
         self._meetings: list[dict] = []
         self._followups: list[dict] = []
+
+        self._seed_demo_meeting()
+
+    # -- demo seed loading (Step 8) ------------------------------------------
+    def _seed_demo_meeting(self) -> None:
+        """
+        Pre-load data/seeds/meetings_seed.json into self._meetings so
+        GET /meetings has a coherent, ready-to-show demo record without
+        requiring a live handle_meeting_request() call first. This makes
+        the seed file an actual source of truth for the running system,
+        not just a fixture other test scripts happen to read.
+
+        Best-effort: a missing or malformed seed file logs a warning and
+        leaves the meeting list empty rather than crashing import — this
+        module is imported at process startup, so it must never raise.
+        """
+        seed_path = _SEEDS_DIR / "meetings_seed.json"
+        try:
+            seed_meetings = json.loads(seed_path.read_text())
+        except (FileNotFoundError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+            _log.warning("Could not load meetings_seed.json (%s) - skipping demo meeting seed", exc)
+            return
+
+        for entry in seed_meetings:
+            lead_id = entry.get("lead_id")
+            lead = self._leads.get(lead_id)
+            contact = self._contacts.get(lead_id)
+            if lead is None or contact is None:
+                _log.warning(
+                    "meetings_seed.json references lead_id=%r not in shim fixture data - skipping entry",
+                    lead_id,
+                )
+                continue
+
+            scheduled_at = None
+            raw_scheduled_at = entry.get("scheduled_at")
+            if raw_scheduled_at:
+                try:
+                    scheduled_at = datetime.fromisoformat(raw_scheduled_at.replace("Z", "+00:00"))
+                except ValueError:
+                    _log.warning("meetings_seed.json entry for %r has an unparseable scheduled_at: %r", lead_id, raw_scheduled_at)
+
+            record = {
+                "id": f"meeting_{uuid.uuid4().hex[:8]}",
+                "lead_id": lead_id,
+                "contact_id": contact["id"],
+                "meeting_link": entry.get("meeting_link"),
+                "status": "link_sent",
+                "scheduled_at": scheduled_at,
+                "briefing": entry.get("briefing"),
+                "admin_notified": False,
+            }
+            self._meetings.append(record)
+            _log.info("crud(shim): seeded demo meeting for %s from meetings_seed.json", lead["company_name"])
 
     # -- emails ------------------------------------------------------------
     def create_email(

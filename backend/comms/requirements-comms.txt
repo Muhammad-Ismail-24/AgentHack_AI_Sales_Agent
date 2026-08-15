@@ -11,3 +11,8 @@ twilio>=9.0.0
 # Needed for backend/api/routes/*.py (Sufiyan's three files:
 # emails.py, meetings.py, webhook.py). fastapi pulls in pydantic.
 fastapi>=0.115.0
+
+# Needed only by test_comms.py's Step 7 check — fastapi.testclient.TestClient
+# for a genuine in-process HTTP roundtrip against the webhook route.
+# httpx2, not httpx — current starlette.testclient deprecated plain httpx.
+httpx2>=2.0.0
