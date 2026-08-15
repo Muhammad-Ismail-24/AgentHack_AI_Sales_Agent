@@ -35,3 +35,8 @@ data/cache/
 
 # Local dev databases
 *.db
+
+# Secrets: the provided env file has no leading dot
+env
+*serviceAccount*.json
+firebase-key*.json
