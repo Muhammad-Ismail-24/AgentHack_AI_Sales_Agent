@@ -72,7 +72,12 @@ async def run_pipeline(*, session_id: str, company: dict, icp: dict) -> Any:
             "Agent pipeline is not available in this build "
             "(backend/agents/orchestrator.py not found)."
         )
-    return await fn(session_id=session_id, company=company, icp=icp)
+    return await fn(
+        session_id=session_id,
+        raw_input=company.get("text", ""),
+        input_type="text",
+        icp_raw=icp,
+    )
 
 
 async def build_icp(*, session_id: str, raw_icp: dict) -> dict[str, Any]:

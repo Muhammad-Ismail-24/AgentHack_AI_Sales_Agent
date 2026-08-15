@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Read(.env.example)",
       "Bash(git log *)",
       "Bash(git diff *)",
       "Bash(git status)",
