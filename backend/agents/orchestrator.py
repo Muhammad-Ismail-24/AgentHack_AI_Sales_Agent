@@ -1,7 +1,10 @@
-"""LangGraph master graph — wires all 9 agent nodes into the sales pipeline.
+"""LangGraph master graph — wires the agent nodes into the sales pipeline.
 
-Flow: rag -> icp -> discovery -> filter -> research -> qualification ->
-      service_match -> decision_makers -> email_writer
+Flow: rag -> icp_agent -> discovery -> filter -> research -> combined_processing
+
+combined_processing does in one LLM call per lead what qualification,
+service_matching, decision_maker and email_writer used to do in four. Those
+four modules still exist under agents/ but nothing imports them any more.
 """
 
 from typing import TypedDict

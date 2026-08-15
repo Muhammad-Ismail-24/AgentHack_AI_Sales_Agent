@@ -162,9 +162,18 @@ Target ICP: {icp}
 Our company's services and knowledge (from RAG): {company_knowledge}
 Booking Link: {booking_link}
 Our company (the sender): {sender_company_name}
+Verified contacts found at this company: {available_contacts}
 
 Do not invent facts. Ground all reasoning and the email in the actual research provided.
 If the lead does not fit the ICP (score < 40), still return the JSON but you can leave the email body empty.
+
+CONTACT SELECTION — read carefully. "Verified contacts" above is the complete
+list of real, looked-up people at this company. For primary_contact you must
+copy one entry from that list verbatim: name, role, and email exactly as given.
+Pick whoever is the best fit for the recommended service. Never guess, alter,
+or construct an email address — a wrong address means the email reaches a
+stranger. If the list is empty, return primary_contact with an empty string
+for every field and explain in "reason" that no verified contact was found.
 
 Respond with ONLY valid JSON matching this exact schema:
 {{
@@ -181,11 +190,11 @@ Respond with ONLY valid JSON matching this exact schema:
   }},
   "decision_maker": {{
     "primary_contact": {{
-      "name": "<contact full name>",
-      "role": "<job title>",
-      "email": "<email address>"
+      "name": "<name copied verbatim from the verified contacts list, else empty>",
+      "role": "<role copied verbatim from the verified contacts list, else empty>",
+      "email": "<email copied verbatim from the verified contacts list, else empty>"
     }},
-    "reason": "<why this person is the best target>"
+    "reason": "<why this person is the best target, or why none was available>"
   }},
   "email": {{
     "subject": "<short, specific subject line>",

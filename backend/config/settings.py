@@ -123,11 +123,10 @@ class Settings(BaseSettings):
     RETRIEVER_TOP_K: int = 5
 
     # ── Pipeline tuning (Ismail) ─────────────────────────────────────
-    # Each researched lead costs 1 LLM call in each of qualification,
-    # service_match, decision_makers, and email_writer — 4 calls/lead. Kept
-    # at 1 so a full pipeline run (icp + 1 batched filter call + 4 more)
-    # stays under 10 total calls, comfortably inside a 15 RPM budget. Raise
-    # this once quota headroom is confirmed.
+    # Each researched lead costs 1 LLM call in combined_processing (which
+    # merged the old qualification/service_match/decision_maker/email_writer
+    # calls into one). A full run is therefore icp(1) + filter(1 per 15 raw
+    # leads) + this many — 9 calls at 6 leads, inside a 15 RPM budget.
     MAX_LEADS_TO_RESEARCH: int = 6
     MIN_QUALIFICATION_SCORE: int = 40
     SENDER_COMPANY_NAME: str = "NovaTech Solutions"
