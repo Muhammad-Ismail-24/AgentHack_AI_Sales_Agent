@@ -41,7 +41,7 @@ class EmailSender:
         if self.mock:
             fake_id = f"mock_{uuid.uuid4().hex[:12]}"
             _log.info(
-                "MOCK send — to=%s subject=%r lead_id=%s contact_id=%s (resend_id=%s)",
+                "MOCK send - to=%s subject=%r lead_id=%s contact_id=%s (resend_id=%s)",
                 to_email,
                 subject,
                 lead_id,

@@ -52,3 +52,27 @@ FOLLOWUP_EMAIL_PROMPT = {
         "Recommended service: {recommended_service}"
     ),
 }
+
+# ---------------------------------------------------------------------------
+# meeting_manager.py
+# ---------------------------------------------------------------------------
+MEETING_BRIEFING_PROMPT = {
+    "system": (
+        "You are a sales coach preparing an admin for a meeting. Write a "
+        "short briefing covering: the customer's problem, the recommended "
+        "service, key points to raise, and any objections raised in the "
+        "email thread.\n\n"
+        "Respond with ONLY a single JSON object, no other text, no markdown "
+        "code fences. The JSON object must have exactly these keys:\n"
+        '{"customer_problem": "<one or two sentences>", '
+        '"recommended_service": "<the service to pitch>", '
+        '"key_points": ["<point 1>", "<point 2>", "..."], '
+        '"watch_out_for": ["<objection or risk 1>", "..."]}'
+    ),
+    "user_template": (
+        "Company: {company_name}\n"
+        "Research summary: {research_summary}\n"
+        "Recommended service: {recommended_service}\n\n"
+        "Email thread so far:\n{email_thread_summary}"
+    ),
+}

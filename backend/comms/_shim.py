@@ -73,7 +73,10 @@ _log = get_logger("comms.shim")
 #   create_email, get_all_emails, create_meeting, get_all_meetings,
 #   create_reply, get_emails_needing_followup
 # plus the implied helpers the comms modules need: get_lead,
-# get_primary_contact, update_lead_stage, create_followup.
+# get_primary_contact, update_lead_stage, create_followup, get_email,
+# update_email_status, get_meeting, mark_meeting_admin_notified,
+# get_meetings_needing_reminder, get_contact_by_email (added while
+# building Steps 4-5 — see conflicts.md for the full up-to-date contract).
 # ---------------------------------------------------------------------------
 class _ShimCRUD:
     def __init__(self) -> None:
@@ -171,6 +174,19 @@ class _ShimCRUD:
             and e["id"] not in followed_up_email_ids
         ]
 
+    def get_email(self, email_id: str) -> Optional[dict]:
+        for e in self._emails:
+            if e["id"] == email_id:
+                return e
+        return None
+
+    def update_email_status(self, email_id: str, status: str) -> Optional[dict]:
+        email = self.get_email(email_id)
+        if email is not None:
+            email["status"] = status
+            _log.info("crud(shim): update_email_status email_id=%s status=%s", email_id, status)
+        return email
+
     # -- replies -------------------------------------------------------------
     def create_reply(self, email_id: str, raw_body: str, received_at: Optional[datetime] = None) -> dict:
         record = {
@@ -210,6 +226,32 @@ class _ShimCRUD:
     def get_all_meetings(self) -> list[dict]:
         return list(self._meetings)
 
+    def get_meeting(self, meeting_id: str) -> Optional[dict]:
+        for m in self._meetings:
+            if m["id"] == meeting_id:
+                return m
+        return None
+
+    def mark_meeting_admin_notified(self, meeting_id: str) -> Optional[dict]:
+        meeting = self.get_meeting(meeting_id)
+        if meeting is not None:
+            meeting["admin_notified"] = True
+            _log.info("crud(shim): mark_meeting_admin_notified meeting_id=%s", meeting_id)
+        return meeting
+
+    def get_meetings_needing_reminder(self, window_minutes: int = 35) -> list[dict]:
+        """Meetings scheduled within the next `window_minutes` that haven't
+        had their pre-meeting admin reminder sent yet."""
+        now = datetime.now(timezone.utc)
+        window_end = now + timedelta(minutes=window_minutes)
+        return [
+            m
+            for m in self._meetings
+            if m.get("scheduled_at") is not None
+            and not m.get("admin_notified")
+            and now <= m["scheduled_at"] <= window_end
+        ]
+
     # -- follow-ups --------------------------------------------------------
     def create_followup(self, lead_id: str, email_id: str, scheduled_for: datetime, status: str = "sent") -> dict:
         record = {
@@ -229,6 +271,12 @@ class _ShimCRUD:
 
     def get_primary_contact(self, lead_id: str) -> Optional[dict]:
         return self._contacts.get(lead_id)
+
+    def get_contact_by_email(self, email: str) -> Optional[dict]:
+        for contact in self._contacts.values():
+            if contact["email"].lower() == email.lower():
+                return contact
+        return None
 
     def update_lead_stage(self, lead_id: str, stage: str) -> Optional[dict]:
         lead = self._leads.get(lead_id)
