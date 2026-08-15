@@ -14,6 +14,7 @@ build/
 # Secrets
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 
@@ -28,3 +29,9 @@ data/cache/
 *.log
 *.tmp
 .DS_Store
+
+# Local virtualenv
+.venv/
+
+# Local dev databases
+*.db
