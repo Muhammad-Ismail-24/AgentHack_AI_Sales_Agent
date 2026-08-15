@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # track the current release, so this keeps working without a code change.
     GEMINI_FALLBACK_MODEL: str = "gemini-flash-latest"
     GEMINI_MAX_TOKENS: int = 4096
+    # Free-tier budget is 15 requests/minute across everything sharing the
+    # key. The limiter in agents/llm_utils.py holds calls to this many per
+    # rolling 60s (14 leaves one request of headroom). Raise on a paid tier.
+    GEMINI_RPM: int = 14
+    # How many times a single call waits out a 429 before giving up with
+    # GeminiQuotaExhausted (0 = fail on the first 429).
+    GEMINI_429_RETRIES: int = 2
 
     # ── Embeddings ───────────────────────────────────────────────────
     GEMINI_EMBEDDING_MODEL: str = "models/text-embedding-004"

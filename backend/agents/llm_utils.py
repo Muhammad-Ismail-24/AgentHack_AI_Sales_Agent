@@ -6,10 +6,22 @@ the JSON out of the response". Prompts still live only in config/prompts.py;
 this file just wires up the model client and response parsing.
 
 LLM provider: Google Gemini, via langchain-google-genai.
+
+Rate limiting: the free-tier Gemini key allows 15 requests/minute, shared by
+every agent AND the comms classifier/follow-up/briefing calls — all of which
+funnel through call_llm_raw() below. A sliding-window limiter here holds each
+call until a slot is free (GEMINI_RPM, default 14 for headroom), so no matter
+how many agents or concurrent runs want the model, the key never exceeds its
+budget. A 429 that still slips through (another process on the same key,
+daily cap) waits out the server-suggested delay once, then raises
+GeminiQuotaExhausted rather than burning further requests on retries.
 """
 
+import asyncio
 import json
 import re
+import time
+from collections import deque
 
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -17,8 +29,60 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from config.settings import settings
 from utils.logger import logger
 
+
+class GeminiQuotaExhausted(RuntimeError):
+    """Raised when the Gemini key is out of quota and waiting won't help.
+
+    The message deliberately contains "429" and "quota" so existing checks
+    (e.g. filter_agent._is_quota_error) recognise it without changes.
+    """
+
+
 _llm: ChatGoogleGenerativeAI | None = None
 _model_name: str | None = None
+
+# ── Sliding-window RPM limiter ───────────────────────────────────────
+# Timestamps of the last requests, oldest first. Guarded by _limiter_lock;
+# a waiter holds the lock while sleeping, which also serialises bursts so
+# concurrent agents queue fairly instead of stampeding the window.
+_call_times: deque[float] = deque()
+_limiter_lock = asyncio.Lock()
+_WINDOW_SECONDS = 60.0
+
+
+async def _acquire_slot() -> None:
+    """Block until sending one more request keeps us inside GEMINI_RPM."""
+    async with _limiter_lock:
+        while True:
+            now = time.monotonic()
+            while _call_times and now - _call_times[0] >= _WINDOW_SECONDS:
+                _call_times.popleft()
+
+            if len(_call_times) < max(1, settings.GEMINI_RPM):
+                _call_times.append(now)
+                return
+
+            wait = _WINDOW_SECONDS - (now - _call_times[0]) + 0.1
+            logger.info(
+                "Gemini RPM budget full (%d calls in the last 60s) — waiting %.1fs",
+                len(_call_times), wait,
+            )
+            await asyncio.sleep(wait)
+
+
+def _is_quota_error(exc: BaseException) -> bool:
+    text = str(exc)
+    return (
+        "429" in text
+        or "ResourceExhausted" in type(exc).__name__
+        or "quota" in text.lower()
+    )
+
+
+def _suggested_retry_seconds(exc: BaseException) -> float | None:
+    """Pull the server-suggested delay out of a 429, if it names one."""
+    match = re.search(r"retry(?:_delay|\s+in)\D*?(\d+(?:\.\d+)?)", str(exc), re.I)
+    return float(match.group(1)) if match else None
 
 
 def _build(model: str) -> ChatGoogleGenerativeAI:
@@ -28,6 +92,11 @@ def _build(model: str) -> ChatGoogleGenerativeAI:
         max_output_tokens=settings.GEMINI_MAX_TOKENS,
         temperature=0.2,
         timeout=60,
+        # No client-internal retries: langchain's default (6, exponential
+        # backoff) re-sends failed calls invisibly, and each re-send counts
+        # against the 15 RPM budget without passing through our limiter.
+        # Retry policy lives in call_llm_raw where it can be accounted for.
+        max_retries=0,
     )
 
 
@@ -102,19 +171,52 @@ async def call_llm_raw(prompt: str) -> str:
     Split out from call_llm_json so callers that need to recover a partial
     result from a truncated/malformed response (e.g. filter_agent's batch
     prompt) can inspect the raw text themselves instead of only getting None.
+
+    Every request first takes a slot from the RPM limiter. On a 429 the call
+    waits out the server-suggested delay and retries up to GEMINI_429_RETRIES
+    times; after that it raises GeminiQuotaExhausted so callers stop spending
+    requests that are guaranteed to fail. A retired-model 404 swaps to the
+    fallback model once.
     """
     messages = [HumanMessage(content=prompt)]
 
-    try:
-        response = await get_llm().ainvoke(messages)
-    except Exception as exc:  # noqa: BLE001
-        # A retired model reports itself as a 404 / NotFound.
-        if "404" not in str(exc) and "not found" not in str(exc).lower():
+    quota_retries = max(0, settings.GEMINI_429_RETRIES)
+    attempt = 0
+    while True:
+        await _acquire_slot()
+        try:
+            response = await get_llm().ainvoke(messages)
+            break
+        except Exception as exc:  # noqa: BLE001
+            text = str(exc)
+
+            # A retired model reports itself as a 404 / NotFound.
+            if "404" in text or "not found" in text.lower():
+                fallback = _switch_to_fallback()
+                if fallback is None:
+                    raise
+                await _acquire_slot()
+                response = await fallback.ainvoke(messages)
+                break
+
+            if _is_quota_error(exc):
+                if attempt >= quota_retries:
+                    raise GeminiQuotaExhausted(
+                        "Gemini API quota exhausted (429) after "
+                        f"{attempt + 1} attempt(s). The free tier allows "
+                        f"{settings.GEMINI_RPM}/min — if this persists, the "
+                        "daily cap is likely spent."
+                    ) from exc
+                delay = _suggested_retry_seconds(exc) or 20.0
+                attempt += 1
+                logger.warning(
+                    "Gemini 429 — waiting %.0fs then retrying (%d/%d)",
+                    delay, attempt, quota_retries,
+                )
+                await asyncio.sleep(delay)
+                continue
+
             raise
-        fallback = _switch_to_fallback()
-        if fallback is None:
-            raise
-        response = await fallback.ainvoke(messages)
 
     return (
         response.content

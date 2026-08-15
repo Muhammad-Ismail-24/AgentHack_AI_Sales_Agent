@@ -14,7 +14,9 @@ Firestore, without which every data route fails.
 |---|---|---|
 | `GEMINI_API_KEY` | all 9 agents, reply classification, follow-up drafting, meeting briefings | aistudio.google.com → Get API key |
 | `GOOGLE_API_KEY` | same — the name the Google SDKs use by convention | either key works; `GEMINI_API_KEY` wins when both are set |
-| `GEMINI_MODEL` | optional override, defaults to `gemini-2.0-flash` | — |
+| `GEMINI_MODEL` | optional override, defaults to `gemini-3.5-flash` | — |
+| `GEMINI_RPM` | requests/minute budget for the shared key — the limiter in `agents/llm_utils.py` holds every LLM call (agents *and* comms) to this rate | free tier allows 15; default 14 for headroom. Raise on a paid tier. |
+| `GEMINI_429_RETRIES` | how many times one call waits out a 429 before failing with a clear quota error | default 2 |
 
 Without a Gemini key the comms LLM drops into mock mode (keyword-heuristic
 classification) and the agent pipeline cannot run.
