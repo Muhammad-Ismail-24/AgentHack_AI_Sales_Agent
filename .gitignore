@@ -45,3 +45,7 @@ firebase-service-account.json
 # TS build artefact
 *.tsbuildinfo
 .vite/
+
+
+
+backend/venv311/
