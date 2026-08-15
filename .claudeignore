@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs
+dist/
+build/
+.next/
+*.egg-info/
+
+# Secrets — use settings.json deny for hard blocks
+.env
+.env.*
+*.pem
+*.key
+
+# Data — large and not useful for coding context
+data/uploads/
+data/cache/
+data/seeds/*.pdf
+
+# Logs and temp files
+*.log
+*.tmp
+.DS_Store
+
+# DB migrations (generated — Claude doesn't need to read these)
+backend/db/migrations/versions/
+
+# Lock files (too noisy)
+package-lock.json
+yarn.lock
+poetry.lock

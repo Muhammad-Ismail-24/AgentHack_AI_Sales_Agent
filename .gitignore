@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build outputs
+dist/
+build/
+.next/
+*.egg-info/
+
+# Secrets
+.env
+.env.*
+*.pem
+*.key
+
+# Data
+data/uploads/
+data/cache/
+
+# Local settings
+.claude/settings.local.json
+
+# Logs and temp files
+*.log
+*.tmp
+.DS_Store
