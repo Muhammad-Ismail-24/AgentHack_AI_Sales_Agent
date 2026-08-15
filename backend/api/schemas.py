@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ORMModel(BaseModel):
-    """Base for anything read straight off a SQLAlchemy row."""
+    """Base for anything read straight out of a Firestore document."""
 
     model_config = ConfigDict(from_attributes=True)
 

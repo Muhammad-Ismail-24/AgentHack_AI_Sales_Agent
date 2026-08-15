@@ -129,14 +129,34 @@ Frontend `npm run build` passes (tsc + vite, 140 modules).
 
 ---
 
+## Cleanup pass (done after the merge commit)
+
+- Deleted `comms/_shim.py`, `comms/_firestore_crud.py`, and
+  `comms/requirements-comms.txt`. `_deps.py` is now three plain imports.
+  **Salvaged first:** the shim's `get_logger()` carried a UTF-8 console fix
+  that stops the emoji in the WhatsApp templates raising
+  `UnicodeEncodeError` on a Windows console. It now lives in
+  `utils/logger.py::_make_console_utf8_safe()`.
+- `backend/Dockerfile` no longer installs `build-essential`/`libpq-dev` —
+  those were only ever for psycopg2.
+- Docs brought in line with reality: root `CLAUDE.md`, `FOLDER_STRUCTURE.md`
+  (stack table + `db/` tree), `.claude/settings.json` (dropped the alembic
+  permission, added deny rules for the env file and service-account JSON).
+- Added `docs/architecture.md` and `docs/database_schema.md`, both listed in
+  `FOLDER_STRUCTURE.md` but never written.
+- `conflicts.md` now opens with a SUPERSEDED banner — it still described
+  Postgres as the team database.
+- `test_comms.py` labels fixed (it announced "Claude (anthropic)" and a shim
+  that no longer exists).
+
 ## Still outstanding
 
-- **Firebase service-account key** (above) — the only blocker.
+- **Firebase service-account key** (see the top of this file) — the only
+  thing standing between this repo and a working demo.
 - **WhatsApp** is off by request. `whatsapp_notifier.py` logs instead of
   sending while the Twilio keys are blank.
-- **Playwright browsers** are not downloaded (`playwright install chromium`)
-  — the research agent's scraper needs them for live runs; the Docker image
-  does this already.
-- `comms/_shim.py` and `comms/_firestore_crud.py` are now dead code —
-  `_deps.py` resolves to the real `db.crud`. Left in place rather than deleted
-  in the merge commit; safe to remove once everyone has pulled.
+- **Playwright browsers** are not downloaded locally — run
+  `playwright install chromium` before a live pipeline run. The Docker image
+  already does this.
+- `backend/test_comms.py` needs Firestore plus seeded data to run:
+  `python backend/load_seeds.py && cd backend && python test_comms.py`.

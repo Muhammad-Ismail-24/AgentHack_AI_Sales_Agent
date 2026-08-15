@@ -8,8 +8,9 @@ are incomplete or the twilio package isn't installed — same pattern as
 EmailSender in email_sender.py.
 
 Message templates match sufiyan_work.md's Step 6 spec verbatim, emoji
-included. See comms/_shim.py's get_logger() for the UTF-8 console fix that
-keeps that content from mangling in mock-mode log output on Windows.
+included. See utils/logger.py's _make_console_utf8_safe() for the UTF-8
+console fix that keeps that content from mangling — or raising — in
+mock-mode log output on Windows.
 """
 
 import asyncio

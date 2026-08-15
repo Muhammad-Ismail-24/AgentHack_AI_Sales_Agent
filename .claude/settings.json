@@ -13,15 +13,18 @@
       "Bash(npm run build)",
       "Bash(uvicorn *)",
       "Bash(python *)",
-      "Bash(alembic *)"
+      "Bash(playwright install *)"
     ],
     "deny": [
       "Read(.env)",
       "Read(.env.*)",
+      "Read(env)",
+      "Read(**/*serviceAccount*.json)",
+      "Read(**/firebase-key*.json)",
+      "Read(**/firebase-service-account.json)",
       "Bash(rm -rf *)",
       "Bash(curl * | bash)",
       "Bash(sudo *)"
     ]
-  },
-  "model": "claude-sonnet-4-6"
+  }
 }

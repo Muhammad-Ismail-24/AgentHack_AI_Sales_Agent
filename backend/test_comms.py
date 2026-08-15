@@ -10,11 +10,12 @@ suite from running — the script always reaches the final PASS/FAIL
 summary table, and exits non-zero only if something actually failed
 ("Flag any errors" per sufiyan_work.md's Step 9 spec).
 
-Works with zero API keys configured (everything runs in mock mode) and
-gets more meaningful the more real keys you add. `tools/calendar_tool.py`
-(Ismail's) hasn't landed yet, so meeting_manager.py's booking-link
-generator is still the mock fallback — see conflicts.md §4a for what
-changes once it does.
+Gets more meaningful the more real keys you add — LLM and email calls fall
+back to mock mode without them. It does, however, need Firestore
+(FIREBASE_SERVICE_ACCOUNT_PATH) and the seeded demo data, since it asserts
+against real lead/contact/email records:
+
+    python backend/load_seeds.py && cd backend && python test_comms.py
 """
 
 import asyncio
@@ -85,18 +86,18 @@ RESULTS: List[StepResult] = []
 
 def _dependency_source_label() -> str:
     if USING_REAL_BACKEND:
-        return "REAL backend (Wajeeh's config/settings.py + utils/logger.py + db/crud.py)"
-    if USING_FIRESTORE:
-        return "comms-local Firestore adapter (comms/_firestore_crud.py) - NOT the team's DB, see conflicts.md"
-    return "in-memory shim (comms/_shim.py)"
+        return "REAL backend (config/settings.py + utils/logger.py + db/crud.py on Firestore)"
+    # The temporary stand-ins this used to describe are gone; comms now always
+    # resolves to the real backend. Reaching here means _deps.py is broken.
+    return "UNKNOWN - comms/_deps.py did not resolve the real backend"
 
 
 def _banner() -> None:
     print("=" * 70)
     print("COMMS LAYER TEST SUITE - Steps 1-9")
     print(f"  dependency source   : {_dependency_source_label()}")
-    print(f"  Claude (anthropic)  : {'MOCK' if is_mock_mode() else 'LIVE'}")
-    print(f"  Resend              : {'MOCK' if EmailSender().mock else 'LIVE'}")
+    print(f"  Gemini              : {'MOCK' if is_mock_mode() else 'LIVE'}")
+    print(f"  email transport     : {EmailSender().transport.upper()}")
     print(f"  tools.calendar_tool : {'REAL' if _USING_REAL_CALENDAR_TOOL else 'MOCK (Ismail not landed yet)'}")
     print(f"  whatsapp_notifier   : {'REAL module' if _USING_REAL_WHATSAPP_NOTIFIER else 'STUB'}, Twilio client = {'MOCK' if WhatsAppNotifier().mock else 'LIVE'}")
     print("=" * 70)
@@ -397,9 +398,9 @@ async def test_seed_data() -> None:
         )
     print(f"  meetings_seed.json: {len(meetings)} entries, all schema-valid")
 
-    # Confirm the shim actually loaded this at startup (see _shim.py's
-    # _seed_demo_meeting) — the seed file is a real source of truth for the
-    # running system, not just an inert fixture other tests happen to read.
+    # Confirm the seeded meeting is actually in the database (loaded by
+    # backend/load_seeds.py) — the seed file is a real source of truth for
+    # the running system, not just an inert fixture other tests read.
     all_meetings = crud.get_all_meetings()
     seed_links = {m["meeting_link"] for m in meetings}
     loaded_links = {m["meeting_link"] for m in all_meetings}

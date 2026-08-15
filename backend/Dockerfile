@@ -2,10 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Build deps for psycopg2 and the Playwright browser runtime.
+# curl is for the healthcheck below. No libpq/build-essential any more —
+# persistence is Firestore, so there is nothing to compile.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
-        libpq-dev \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
