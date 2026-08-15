@@ -5,6 +5,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import { PipelineProvider, usePipeline } from './hooks/usePipeline';
 import ICP from './pages/ICP';
 import Inbox from './pages/Inbox';
+import Landing from './pages/Landing';
 import LeadDetail from './pages/LeadDetail';
 import Leads from './pages/Leads';
 import Meetings from './pages/Meetings';
@@ -21,7 +22,8 @@ export default function App() {
     PipelineProvider,
     { value: pipeline },
     <Routes>
-      <Route path="/" element={<Navigate to="/onboarding" replace />} />
+      {/* Marketing front door — full screen, its own terracotta theme. */}
+      <Route path="/" element={<Landing />} />
       <Route path="/onboarding" element={<Onboarding />} />
       <Route path="/icp" element={<ICP />} />
 
@@ -33,7 +35,7 @@ export default function App() {
         <Route path="/meetings" element={<Meetings />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/onboarding" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>,
   );
 }
