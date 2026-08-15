@@ -20,6 +20,8 @@ Every function returns plain dicts (or None), never SDK document objects.
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+from google.cloud.firestore_v1.base_query import FieldFilter
+
 from db import firestore as fs
 from db.models import (
     CONTACT_FIELDS,
@@ -67,7 +69,7 @@ def _where(collection: str, field: str, value: Any) -> list[dict]:
     is small, so anything more complex is filtered in Python instead — one
     indexed lookup, then plain list comprehensions.
     """
-    query = fs.collection(collection).where(field, "==", value)
+    query = fs.collection(collection).where(filter=FieldFilter(field, "==", value))
     return [d.to_dict() for d in query.stream()]
 
 

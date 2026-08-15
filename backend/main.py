@@ -120,6 +120,7 @@ for module_path, attr, label, prefix in ROUTERS:
     _register(app, module_path, attr, label, prefix)
 
 
+@app.head("/health", tags=["meta"])
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
     """Liveness check. Reports Firestore reachability without failing on it."""
@@ -129,6 +130,7 @@ async def health() -> HealthResponse:
     return HealthResponse(status="ok", database=db_status, version=app.version)
 
 
+@app.head("/", tags=["meta"])
 @app.get("/", tags=["meta"])
 async def root() -> dict[str, str]:
     return {

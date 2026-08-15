@@ -121,7 +121,7 @@ class Settings(BaseSettings):
     # at 1 so a full pipeline run (icp + 1 batched filter call + 4 more)
     # stays under 10 total calls, comfortably inside a 15 RPM budget. Raise
     # this once quota headroom is confirmed.
-    MAX_LEADS_TO_RESEARCH: int = 1
+    MAX_LEADS_TO_RESEARCH: int = 6
     MIN_QUALIFICATION_SCORE: int = 40
     SENDER_COMPANY_NAME: str = "NovaTech Solutions"
 

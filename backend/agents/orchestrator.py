@@ -9,15 +9,12 @@ from typing import TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from agents import (
-    decision_maker_agent,
+    combined_processing_agent,
     discovery_agent,
-    email_writer_agent,
     filter_agent,
     icp_agent,
-    qualification_agent,
     rag_agent,
     research_agent,
-    service_matching_agent,
 )
 from utils.logger import logger
 
@@ -36,10 +33,8 @@ class PipelineState(TypedDict, total=False):
       raw_leads               - discovery_agent
       filtered_leads          - filter_agent
       researched_leads        - research_agent
-      qualified_leads          - qualification_agent (created),
-                                  service_matching_agent, decision_maker_agent,
-                                  email_writer_agent (all update in place)
-      outreach_queue            - email_writer_agent
+      qualified_leads          - combined_processing_agent
+      outreach_queue            - combined_processing_agent
     """
 
     session_id: str
@@ -67,21 +62,15 @@ def build_graph():
     graph.add_node("discovery", discovery_agent.run)
     graph.add_node("filter", filter_agent.run)
     graph.add_node("research", research_agent.run)
-    graph.add_node("qualification", qualification_agent.run)
-    graph.add_node("service_match", service_matching_agent.run)
-    graph.add_node("decision_makers", decision_maker_agent.run)
-    graph.add_node("email_writer", email_writer_agent.run)
+    graph.add_node("combined_processing", combined_processing_agent.run)
 
     graph.add_edge(START, "rag")
     graph.add_edge("rag", "icp_agent")
     graph.add_edge("icp_agent", "discovery")
     graph.add_edge("discovery", "filter")
     graph.add_edge("filter", "research")
-    graph.add_edge("research", "qualification")
-    graph.add_edge("qualification", "service_match")
-    graph.add_edge("service_match", "decision_makers")
-    graph.add_edge("decision_makers", "email_writer")
-    graph.add_edge("email_writer", END)
+    graph.add_edge("research", "combined_processing")
+    graph.add_edge("combined_processing", END)
 
     return graph.compile()
 

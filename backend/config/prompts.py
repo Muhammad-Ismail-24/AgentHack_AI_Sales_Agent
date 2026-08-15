@@ -154,6 +154,46 @@ Respond with ONLY valid JSON matching this exact schema, no extra text:
 }}"""
 
 
+COMBINED_PROCESSING_PROMPT = """You are an elite B2B sales strategist, analyst, and copywriter.
+Your task is to process a fully researched lead in one go: score them against our ICP, pick the best service to pitch, select the best decision maker, and write the final cold email.
+
+Company research: {company_research}
+Target ICP: {icp}
+Our company's services and knowledge (from RAG): {company_knowledge}
+Booking Link: {booking_link}
+Our company (the sender): {sender_company_name}
+
+Do not invent facts. Ground all reasoning and the email in the actual research provided.
+If the lead does not fit the ICP (score < 40), still return the JSON but you can leave the email body empty.
+
+Respond with ONLY valid JSON matching this exact schema:
+{{
+  "qualification": {{
+    "score": <integer 0-100>,
+    "explanation": "<2-3 sentence plain-English explanation of the score>",
+    "top_reasons": ["<reason this lead is a good fit>", "..."],
+    "red_flags": ["<any concern or reason to be cautious>", "..."]
+  }},
+  "service_match": {{
+    "recommended_service": "<the single best-fit service/product name>",
+    "pitch_angle": "<the specific angle to use>",
+    "why_it_fits": "<1-2 sentences on why this fits>"
+  }},
+  "decision_maker": {{
+    "primary_contact": {{
+      "name": "<contact full name>",
+      "role": "<job title>",
+      "email": "<email address>"
+    }},
+    "reason": "<why this person is the best target>"
+  }},
+  "email": {{
+    "subject": "<short, specific subject line>",
+    "body": "<full email body, under 150 words, ending with a soft CTA and {booking_link}>"
+  }}
+}}"""
+
+
 # ══════════════════════════════════════════════════════════════════════
 # Comms layer prompts (reply classification, follow-ups, meeting briefs)
 # ══════════════════════════════════════════════════════════════════════
