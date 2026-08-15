@@ -16,3 +16,9 @@ fastapi>=0.115.0
 # for a genuine in-process HTTP roundtrip against the webhook route.
 # httpx2, not httpx — current starlette.testclient deprecated plain httpx.
 httpx2>=2.0.0
+
+# Optional — only needed if FIREBASE_SERVICE_ACCOUNT_PATH is set, for
+# comms/_firestore_crud.py (comms-local adapter, NOT the team's DB — see
+# conflicts.md). Safe to skip installing if you're not using it; _deps.py
+# falls back to the in-memory shim when this import fails.
+firebase-admin>=6.5.0

@@ -6,6 +6,14 @@ assertions and exits 0. See Section 8 for the full deliverable checklist.
 What remains is entirely on Wajeeh's and Ismail's side — this file is the
 merge guide for when their branches land.
 
+**⚠️ Read Section 9 before assuming this repo's database is Postgres.**
+A comms-local Firestore adapter now exists and is active on any machine
+with a Firebase service account key configured. It does **not** change
+`CLAUDE.md`/`FOLDER_STRUCTURE.md`'s documented architecture (still
+Postgres via Supabase) or touch `backend/db/crud.py` (still Wajeeh's,
+still doesn't exist) — but the team needs to actually decide whether
+Firestore is real or gets dropped. Section 9 has the full writeup.
+
 Sufiyan's comms layer (`backend/comms/`) was built before `backend/config/`,
 `backend/utils/`, `backend/db/`, and `backend/main.py` existed. To avoid
 blocking, it runs against a local shim (`backend/comms/_shim.py` +
@@ -21,6 +29,9 @@ top to bottom when that merge happens.
 
 - `backend/comms/_shim.py`
 - `backend/comms/_deps.py`
+- `backend/comms/_firestore_crud.py` — added later (Section 9); same
+  "delete once the real backend lands" fate as the other two, **plus** it
+  needs a team decision on whether Firestore was ever real to begin with.
 
 `_deps.py` is a try/except: once `backend/config/settings.py`,
 `backend/utils/logger.py`, and `backend/db/crud.py` all exist and import
@@ -110,6 +121,12 @@ CALCOM_API_KEY=
 generates a **mock** booking link (see Section 4a below) because Ismail's
 `backend/tools/calendar_tool.py` doesn't exist yet either. Once it lands
 and actually calls the Cal.com API, it will be the one reading this key.
+
+**Not part of the above list — deliberately kept separate:**
+`FIREBASE_SERVICE_ACCOUNT_PATH` (Section 9). It's for the comms-local
+Firestore adapter, not the documented Postgres/Supabase stack, so it does
+**not** belong in `config/settings.py`'s `BaseSettings` unless the team
+actually adopts Firestore. See Section 9 for what to do with it either way.
 
 ## 4. Shared files touched by the comms layer
 
@@ -335,3 +352,129 @@ deployed app).
   (`FOLDER_STRUCTURE.md:512`). Needs a `!.env.example` negation line added
   after the `.env.*` pattern. Not fixing here since `.gitignore` changes
   are marked "All — agree before changing" in `FOLDER_STRUCTURE.md`.
+
+## 9. Comms-local Firestore adapter — NOT the team's database
+
+**Read this whole section before touching `backend/comms/_firestore_crud.py`
+or wondering why some machines behave differently from others.**
+
+### What this is and isn't
+
+A Firebase service account key became available locally, and rather than
+either ignoring it or unilaterally rewriting `backend/db/crud.py` (which
+is Wajeeh's file, not Sufiyan's — see Section 6), the comms layer gained
+a **third, optional** backing store: `backend/comms/_firestore_crud.py`,
+a Firestore-backed implementation of the exact same CRUD interface the
+in-memory shim exposes. It is a drop-in for `comms/_shim.py`'s
+`_ShimCRUD`, activated only when `FIREBASE_SERVICE_ACCOUNT_PATH` is set.
+
+**This is explicitly not a decision to adopt Firestore as the project's
+database.** `CLAUDE.md` and `FOLDER_STRUCTURE.md` still say Postgres via
+Supabase — neither file was edited. `backend/db/crud.py` still doesn't
+exist and is still Wajeeh's to build. Nobody without the env var set sees
+any behavior change at all — confirmed by running the full 9-step
+`test_comms.py` suite both with and without it; both runs pass identically
+except for the banner's `dependency source` line.
+
+### How it's wired (`comms/_deps.py`)
+
+Three tiers now, tried in order:
+
+1. **Real backend** (Wajeeh's `config/settings.py` + `utils/logger.py` +
+   `db/crud.py`) — once these exist, everything below is dead code, same
+   as before.
+2. **Comms-local Firestore adapter** — tried only when
+   `FIREBASE_SERVICE_ACCOUNT_PATH` is set in the environment. If the
+   import or Firestore init fails for any reason (bad path, revoked key,
+   `firebase-admin` not installed), it's caught and logged, and execution
+   falls through to tier 3 — a broken Firestore config can never break
+   the comms layer.
+3. **In-memory shim** — the original fallback, unchanged. This is what
+   everyone without a Firebase key gets.
+
+### Scope: what's actually in Firestore vs. what's still a fixture
+
+Only the data comms actually owns went to real Firestore collections:
+`emails`, `replies`, `meetings`, `followups` — matching the same document
+shapes as the CRUD contract in Section 2. **Leads and contacts are NOT in
+Firestore** — `_firestore_crud.py` keeps the same local fixture dicts
+`_shim.py` uses (3 demo leads/contacts, identical values). Real lead/
+contact data ownership isn't a call this adapter tries to make.
+
+The Step 8 demo-meeting seed (Section 4c) was ported here too, with one
+difference: it's **idempotent** — Firestore persists across process runs
+(unlike the in-memory shim, which starts empty every time), so
+`_seed_demo_meeting()` checks for an existing document by `meeting_link`
+before writing, instead of duplicating the seed meeting on every run.
+
+### Verified against the real Firestore project
+
+`python backend/test_comms.py` was run with `FIREBASE_SERVICE_ACCOUNT_PATH`
+pointed at the real key — all 9 steps passed against actual network calls
+(visible in the log timestamps: ~700ms–1s per Firestore round trip, not
+the near-instant in-memory shim). Every CRUD function in Section 2's
+contract round-tripped through real Firestore, including the ones named
+in the original ask: `get_email`, `update_email_status`, `get_meeting`,
+`mark_meeting_admin_notified`, `get_meetings_needing_reminder`,
+plus all the `create_*`/`get_all_*` functions.
+
+**Practical note:** because Firestore is a real, persistent cloud
+resource, every test run against it writes real documents — repeated runs
+accumulate `emails`/`replies`/`meetings`/`followups` documents over time
+(the demo-meeting seed is the one exception, being idempotent). Not a
+concern at hackathon scale, but if the Firestore free-tier quota ever
+becomes a factor, clear the collections from the Firebase Console between
+demo runs.
+
+### Security — the service account key
+
+`agenthack-dc1a0-firebase-adminsdk-fbsvc-5990f3a823.json` sits at the repo
+root. As of this writing it is **not tracked by git and has never
+appeared in commit history** — verified via `git ls-files` and
+`git log --all -- <filename>` before touching anything. `.gitignore` was
+also fixed as part of this change (it had picked up a blanket `*.json`
+rule, presumably to hide this file, which would have silently stopped
+tracking `data/seeds/*.json` and any other legitimate JSON files going
+forward) — replaced with scoped patterns
+(`*firebase-adminsdk*.json`, `serviceAccountKey.json`, `*serviceAccount*.json`).
+
+**Rules for anyone using this adapter:**
+- **Never commit this file, or any Firebase/GCP service account key.**
+  The `.gitignore` patterns above cover common naming conventions, but
+  don't rely on that alone — double-check `git status` before committing
+  anything near it.
+- **Don't share this specific key file** (Slack, email, a shared drive).
+  Anyone who wants to use the adapter should generate their **own** key:
+  Firebase Console → Project Settings → Service Accounts → Generate new
+  private key, for the `agenthack-dc1a0` project.
+- **The path is read from `FIREBASE_SERVICE_ACCOUNT_PATH`, never
+  hardcoded** — nothing in `comms/_firestore_crud.py` or `comms/_shim.py`
+  references the literal filename.
+- **If this key is ever exposed** (committed, pasted somewhere public,
+  shared insecurely) — rotate/revoke it immediately in the Firebase
+  Console and issue a new one. Don't assume it's fine because it was
+  caught quickly.
+
+### Team decision needed
+
+This adapter proves Firestore *can* work for the comms-owned tables. It
+does not decide whether it *should* — that's a real architecture call
+with consequences for Wajeeh's DB layer (Postgres per current docs) and
+anything Ismail's RAG/agent layer might eventually need from a relational
+store. Options, to be discussed before this goes further:
+
+1. **Adopt Firestore for real.** Update `CLAUDE.md` and
+   `FOLDER_STRUCTURE.md`'s stated architecture, and `backend/db/crud.py`
+   becomes a Firestore implementation (this file's logic is the starting
+   point) instead of a Postgres one.
+2. **Drop it.** Keep Postgres/Supabase as documented; treat this adapter
+   as a local experiment, and delete `_firestore_crud.py` +
+   `FIREBASE_SERVICE_ACCOUNT_PATH` references once Wajeeh's real
+   Postgres-backed `crud.py` lands.
+3. **Something else** (e.g., Firestore for a subset of tables, Postgres
+   for the rest) — needs its own discussion; not something to infer from
+   this adapter existing.
+
+Until the team decides, this stays exactly what it is: an opt-in,
+comms-local, fully-fallback-safe adapter that changes nothing for anyone
+who doesn't set the env var.

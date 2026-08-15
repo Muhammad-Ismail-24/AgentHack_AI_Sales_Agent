@@ -43,6 +43,11 @@ class _ShimSettings:
         self.TWILIO_WHATSAPP_FROM: Optional[str] = os.environ.get("TWILIO_WHATSAPP_FROM")
         self.ADMIN_WHATSAPP_NUMBER: Optional[str] = os.environ.get("ADMIN_WHATSAPP_NUMBER")
         self.CALCOM_API_KEY: Optional[str] = os.environ.get("CALCOM_API_KEY")
+        # Comms-local Firestore adapter (see comms/_firestore_crud.py and
+        # conflicts.md) — NOT the team's documented DB (Postgres/Supabase
+        # per CLAUDE.md). Path to a Firebase service account key file,
+        # never hardcoded or committed. Unset = adapter stays off.
+        self.FIREBASE_SERVICE_ACCOUNT_PATH: Optional[str] = os.environ.get("FIREBASE_SERVICE_ACCOUNT_PATH")
 
 
 settings = _ShimSettings()

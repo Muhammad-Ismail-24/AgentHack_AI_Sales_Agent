@@ -17,6 +17,13 @@ build/
 *.pem
 *.key
 
+# Firebase / GCP service account credentials — never commit these.
+# See conflicts.md for the comms-local Firestore adapter that reads one
+# via the FIREBASE_SERVICE_ACCOUNT_PATH env var (path never hardcoded).
+*firebase-adminsdk*.json
+serviceAccountKey.json
+*serviceAccount*.json
+
 # Data
 data/uploads/
 data/cache/

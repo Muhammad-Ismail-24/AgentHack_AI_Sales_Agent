@@ -27,7 +27,7 @@ from typing import Awaitable, List
 
 from api.routes.emails import SendEmailRequest, list_emails, send_email
 from api.routes.meetings import CreateMeetingRequest, create_meeting, list_meetings
-from comms._deps import USING_REAL_BACKEND, crud, get_logger
+from comms._deps import USING_FIRESTORE, USING_REAL_BACKEND, crud, get_logger
 from comms._llm import is_mock_mode
 from comms.email_reader import EmailReader
 from comms.email_sender import EmailSender
@@ -83,10 +83,18 @@ class StepResult:
 RESULTS: List[StepResult] = []
 
 
+def _dependency_source_label() -> str:
+    if USING_REAL_BACKEND:
+        return "REAL backend (Wajeeh's config/settings.py + utils/logger.py + db/crud.py)"
+    if USING_FIRESTORE:
+        return "comms-local Firestore adapter (comms/_firestore_crud.py) - NOT the team's DB, see conflicts.md"
+    return "in-memory shim (comms/_shim.py)"
+
+
 def _banner() -> None:
     print("=" * 70)
     print("COMMS LAYER TEST SUITE - Steps 1-9")
-    print(f"  dependency source   : {'REAL backend' if USING_REAL_BACKEND else 'shim (comms/_shim.py)'}")
+    print(f"  dependency source   : {_dependency_source_label()}")
     print(f"  Claude (anthropic)  : {'MOCK' if is_mock_mode() else 'LIVE'}")
     print(f"  Resend              : {'MOCK' if EmailSender().mock else 'LIVE'}")
     print(f"  tools.calendar_tool : {'REAL' if _USING_REAL_CALENDAR_TOOL else 'MOCK (Ismail not landed yet)'}")
