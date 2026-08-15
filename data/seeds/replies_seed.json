@@ -1,0 +1,23 @@
+[
+  {
+    "lead_id": "lead_001",
+    "from_email": "ceo@alphalogistics.ae",
+    "subject": "Re: Automate Your Customer Support — AlphaLogistics",
+    "body": "Hi, this looks interesting. We've been struggling with WhatsApp volume. Can we schedule a call this week?",
+    "expected_classification": "Meeting Requested"
+  },
+  {
+    "lead_id": "lead_002",
+    "from_email": "ops@betafreight.com",
+    "subject": "Re: Cut Response Time by 60% — BetaFreight",
+    "body": "Thanks for reaching out. What's the pricing for a team of 30?",
+    "expected_classification": "Pricing Objection"
+  },
+  {
+    "lead_id": "lead_003",
+    "from_email": "tech@gammasupply.com",
+    "subject": "Re: AI Customer Support — GammaSupply",
+    "body": "Not interested at this time.",
+    "expected_classification": "Not Interested"
+  }
+]

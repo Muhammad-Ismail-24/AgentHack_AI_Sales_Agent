@@ -1,0 +1,65 @@
+[
+  {
+    "id": "email_001",
+    "lead_id": "lead_001",
+    "contact_email": "ceo@alphalogistics.ae",
+    "subject": "Automate Your Customer Support — AlphaLogistics",
+    "body": "Omar,\n\nYou're advertising three open customer support roles while your WhatsApp number sits on every page of alphalogistics.ae. That combination usually means one thing: shipment status questions are arriving faster than five people can answer them, and weekends are the worst of it.\n\nWe built the WhatsApp AI chatbot for Gulf Freight Services here in Dubai — same size, same problem. Six weeks in, 68% of their inbound messages were resolved without a human touching them, first response dropped from four hours to under two minutes, and five of their twelve support staff moved onto account management instead of being let go.\n\nYou're already on Salesforce, so conversations land against the right customer record from day one. Deployment is three to four weeks.\n\nWorth 20 minutes to see the Gulf Freight numbers in detail?\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_002",
+    "lead_id": "lead_002",
+    "contact_email": "ops@betafreight.com",
+    "subject": "Cut Response Time by 60% — BetaFreight",
+    "body": "Yusuf,\n\nCongratulations on the Mombasa route. In our experience a new corridor adds 30 to 40% to inbound customer messages within the first quarter — and your ops team is already carrying support on shared inboxes and one WhatsApp account.\n\nThat's the moment automation is worth having in place beforehand rather than after.\n\nWe put a WhatsApp AI agent in front of Gulf Freight Services' support queue. It handles shipment status, ETA, and documentation questions end to end, in English and Arabic, and escalates to a person when it isn't confident. Their cost per ticket fell 61%, and thirty people stopped answering the same question all day.\n\nHappy to walk you through how it would sit against your current setup — 20 minutes, no deck required.\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_003",
+    "lead_id": "lead_003",
+    "contact_email": "tech@gammasupply.com",
+    "subject": "AI Customer Support — GammaSupply",
+    "body": "Rania,\n\nI read your team's write-up on the internal support assistant you started last year — the section on retrieval quality against your own docs was a good, honest post.\n\nSo I won't pitch you an off-the-shelf chatbot. The thing teams building this in-house usually underestimate isn't the model, it's the evaluation harness: knowing whether today's answers are better or worse than last week's, per intent, with real traffic.\n\nThat's most of what we build in our custom LLM work, including on-premise where data residency requires it. If that project is still running and the evaluation side is the awkward part, I'm happy to compare notes — genuinely, no pitch.\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_004",
+    "lead_id": "lead_004",
+    "contact_email": "fatima.a@emiratescargolink.ae",
+    "subject": "8,000 \"where is my order\" messages a week — Emirates Cargo Link",
+    "body": "Fatima,\n\nI went through the comments on your last few Instagram posts. Nearly all of them are customers asking where their delivery is — in public, because the portal needs a tracking number nobody keeps.\n\nAt your delivery volume that's roughly 8,000 messages a week hitting your team, and almost all of them have the same answer.\n\nWe built the WhatsApp AI chatbot for Gulf Freight Services in Dubai. It pulls live status from their TMS and answers directly in the customer's WhatsApp thread — no portal, no tracking number. 68% of messages resolved with no human involved, first response under two minutes.\n\nYou're on HubSpot, so every conversation writes back to the right contact record automatically.\n\nAs someone who came up through support, I think you'll see the deflection numbers faster than most. 20 minutes this week?\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_005",
+    "lead_id": "lead_005",
+    "contact_email": "hassan@souqdirect.com",
+    "subject": "Handling White Friday without hiring temps — SouqDirect",
+    "body": "Hassan,\n\nYou've posted for seasonal support agents three times in the last year. Campaign spikes are the tell — volume triples for a fortnight and the only lever available is temporary headcount you then have to train.\n\nZahra Retail Group had the same pattern. We put a WhatsApp AI agent in front of their order-status queue, wired into Shopify and HubSpot. Through Ramadan they handled 3x the volume with no new hires, and repeat purchase rate went up 23% over the next two quarters — post-purchase answers arriving in seconds rather than a day.\n\nYou're on Shopify Plus and Zoho, both of which we integrate with directly.\n\nWorth a look before the next campaign cycle?\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_006",
+    "lead_id": "lead_006",
+    "contact_email": "noor@desertrosetrading.ae",
+    "subject": "Four people doing outreach by hand — Desert Rose Trading",
+    "body": "Noor,\n\nYou're running imports and retail distribution across the northern emirates with a four-person sales team doing buyer outreach manually. That's a lot of typing for four people.\n\nOur AI Email Assistant drafts personalised outreach from your own product data, classifies replies by intent as they come in, and queues the follow-ups nobody remembers to send. Teams using it report roughly 3x the first-touch volume per rep without adding anyone.\n\nIt's $1,200 a month and needs no CRM to start — which matters given you don't have one yet.\n\nIf it works, the natural next step is putting the same agent on your WhatsApp enquiries. But the email side pays for itself first.\n\n15 minutes?\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 4
+  },
+  {
+    "id": "email_007",
+    "lead_id": "lead_007",
+    "contact_email": "priya.r@gulfstreamretail.com",
+    "subject": "Freshdesk still needs a human on every WhatsApp thread",
+    "body": "Priya,\n\nI saw the press release about the customer experience overhaul — congratulations on getting that funded.\n\nOne thing worth checking as you scope it: a help desk routes conversations, it doesn't remove them. Your twenty-person contact centre is still reading and answering every WhatsApp message that lands in Freshdesk. The tooling improved; the volume didn't move.\n\nDeflection is the number that changes the shape of the team. For Gulf Freight Services, 68% of inbound messages never reached a person at all, and support cost per ticket fell 61%.\n\nWe sit in front of Freshdesk rather than replacing it, and write back to Salesforce.\n\nHappy to send the deck — or 20 minutes is faster if you'd rather ask questions directly.\n\nWajeeh\nNovaTech Solutions",
+    "status": "sent",
+    "sent_days_ago": 6
+  }
+]

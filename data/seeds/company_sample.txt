@@ -1,0 +1,74 @@
+NovaTech Solutions — Company Profile
+
+ABOUT US
+NovaTech Solutions is an AI software company founded in 2022, headquartered in
+Karachi, Pakistan, with a regional office in Dubai, UAE. We are a team of 25 —
+engineers, ML researchers, and solution architects — and we build conversational
+AI and workflow automation for mid-market companies that have outgrown manual
+customer operations.
+
+We work almost entirely with businesses that live on WhatsApp: logistics
+operators fielding shipment queries, e-commerce brands handling order status
+requests, and real-estate agencies juggling viewing enquiries. These companies
+typically have 5 to 40 people answering the same questions over and over.
+
+WHAT WE SELL
+
+1. WhatsApp AI Chatbot — from $2,500/month
+   A conversational agent on WhatsApp Business API that handles customer support
+   end to end: order tracking, shipment status, FAQs, appointment booking, and
+   escalation to a human when confidence drops. Understands English, Arabic, and
+   Urdu. Typical deployment takes 3 to 4 weeks. Customers usually see 60 to 70
+   percent of inbound messages fully resolved without a human.
+
+2. CRM Integration — from $1,800/month
+   Connects WhatsApp, email, and web chat into Salesforce, HubSpot, or Zoho, so
+   every conversation lands against the right customer record. Includes
+   bidirectional sync, custom field mapping, and automated lead routing. Removes
+   the copy-paste work that eats several hours per rep per week.
+
+3. AI Email Assistant for sales teams — from $1,200/month
+   Drafts personalised outreach and replies from your own CRM data and product
+   docs, classifies inbound replies by intent, and queues follow-ups. Sales teams
+   report roughly 3x more first-touch volume per rep without extra headcount.
+
+4. Custom LLM Solutions — project-based, from $25,000
+   Retrieval-augmented systems built on a company's own documents: internal
+   knowledge assistants, document processing pipelines, and domain-specific
+   copilots. Includes evaluation harnesses and on-premise deployment where data
+   residency requires it.
+
+CASE STUDIES
+
+Gulf Freight Services (Dubai, UAE — 180 employees, logistics)
+Their 12-person support team was handling around 3,000 WhatsApp messages a week,
+mostly "where is my shipment". Average first response time was 4 hours and got
+worse over weekends. We deployed the WhatsApp AI Chatbot integrated with their
+TMS. Within six weeks, 68 percent of messages were resolved with no human
+involved, first response time fell to under 2 minutes, and they redeployed 5 of
+the 12 support staff onto account management. Support cost per ticket dropped 61
+percent.
+
+Zahra Retail Group (Karachi, Pakistan — 90 employees, e-commerce)
+Order-status enquiries spiked every campaign launch and their team could not keep
+up, so carts were abandoned after purchase. We combined the WhatsApp AI Chatbot
+with CRM Integration into their Shopify and HubSpot stack. Repeat purchase rate
+rose 23 percent over two quarters, and the support team handled a 3x volume
+increase during Ramadan campaigns with no new hires.
+
+WHO WE SELL TO
+Companies with 50 to 500 employees in logistics, e-commerce, and real estate,
+concentrated in the UAE, Saudi Arabia, and Pakistan. Our sweet spot is a business
+with a high volume of repetitive inbound customer messages, an existing CRM, and
+a support team that is visibly underwater.
+
+TECHNOLOGY
+Claude (Anthropic) for reasoning and generation, LangGraph for agent
+orchestration, Qdrant for vector retrieval, WhatsApp Business API via Twilio,
+Python and FastAPI on the backend, React on the front end, deployed on AWS with
+optional on-premise for data-residency requirements.
+
+CONTACT
+NovaTech Solutions
+Karachi, Pakistan · Dubai, UAE
+hello@novatech.example.com

@@ -1,0 +1,289 @@
+[
+  {
+    "id": "lead_001",
+    "company_name": "AlphaLogistics",
+    "website": "https://alphalogistics.ae",
+    "industry": "Logistics",
+    "location": "Dubai, UAE",
+    "employee_count": 180,
+    "pipeline_stage": "Meeting Scheduled",
+    "lead_score": 94,
+    "score_explanation": "Textbook fit. 180-person freight operator in Dubai running customer support almost entirely on WhatsApp with a 5-person team. Their careers page lists three open support roles, which says the volume is beating them. Salesforce is already in their stack, so CRM Integration drops straight in. CEO replied within a day asking for a call.",
+    "recommended_service": "WhatsApp AI Chatbot with CRM Integration",
+    "pitch_angle": "Lead with the Gulf Freight case study — same city, same size, same problem. 68% of messages resolved without a human, and five support staff moved to account management instead of being laid off.",
+    "icp_fit": true,
+    "research_summary": "AlphaLogistics runs regional freight forwarding across the GCC out of Jebel Ali. Their public WhatsApp business number is the primary support channel and is advertised on every page of the site. Support hours are listed as 9-6 Sunday to Thursday, but shipment queries arrive around the clock — several Google reviews in the last quarter mention slow weekend responses specifically. Tech stack detected: Salesforce, Zendesk (legacy), Twilio. Hiring three customer support agents as of last month. No AI or automation vendor detected.",
+    "contacts": [
+      {
+        "name": "Omar Al-Rashid",
+        "role": "CEO",
+        "email": "ceo@alphalogistics.ae",
+        "linkedin_url": "https://linkedin.com/in/omar-al-rashid",
+        "is_primary": true
+      },
+      {
+        "name": "Layla Mansoor",
+        "role": "Head of Customer Operations",
+        "email": "layla.m@alphalogistics.ae",
+        "is_primary": false
+      }
+    ]
+  },
+  {
+    "id": "lead_002",
+    "company_name": "BetaFreight",
+    "website": "https://betafreight.com",
+    "industry": "Logistics",
+    "location": "Abu Dhabi, UAE",
+    "employee_count": 120,
+    "pipeline_stage": "Interested",
+    "lead_score": 89,
+    "score_explanation": "Strong fit on size, geography, and channel. 30-person operations team handling inbound on WhatsApp and email with no automation. Replied asking for pricing, which is buying behaviour rather than a brush-off. Marked down slightly because no CRM was detected, so CRM Integration is a harder second sell.",
+    "recommended_service": "WhatsApp AI Chatbot",
+    "pitch_angle": "They asked about price for 30 seats — answer directly, then reframe on cost per ticket rather than per seat. Gulf Freight cut support cost per ticket 61%.",
+    "icp_fit": true,
+    "research_summary": "BetaFreight moves bulk cargo between Abu Dhabi and East Africa. Recently announced a new Mombasa route, which means query volume is about to rise. Support is handled by a 30-person ops team using shared inboxes and a shared WhatsApp Business account. No CRM detected. Site is on WordPress, no chat widget, no help centre — everything routes to a phone number or WhatsApp.",
+    "contacts": [
+      {
+        "name": "Yusuf Kariuki",
+        "role": "Head of Operations",
+        "email": "ops@betafreight.com",
+        "linkedin_url": "https://linkedin.com/in/yusuf-kariuki",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_003",
+    "company_name": "GammaSupply",
+    "website": "https://gammasupply.com",
+    "industry": "Supply Chain Technology",
+    "location": "Sharjah, UAE",
+    "employee_count": 95,
+    "pipeline_stage": "Not Interested",
+    "lead_score": 71,
+    "score_explanation": "Right size and region, but they build supply-chain software themselves, so an in-house build is the obvious objection. Their engineering blog describes an internal chatbot project started last year. Passed back a flat no — worth revisiting in two quarters if that project stalls.",
+    "recommended_service": "Custom LLM Solutions",
+    "pitch_angle": "Do not pitch the off-the-shelf chatbot to a company that builds software. If they re-engage, lead with the evaluation harness and on-premise deployment — the parts an internal team usually underestimates.",
+    "icp_fit": true,
+    "research_summary": "GammaSupply sells warehouse management software to regional distributors. Technical team of roughly 40. Their engineering blog has two posts about building an internal support assistant on open-source models, the most recent six months ago. Uses HubSpot. Support volume is moderate and mostly B2B ticket-based rather than WhatsApp.",
+    "contacts": [
+      {
+        "name": "Rania Haddad",
+        "role": "CTO",
+        "email": "tech@gammasupply.com",
+        "linkedin_url": "https://linkedin.com/in/rania-haddad",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_004",
+    "company_name": "Emirates Cargo Link",
+    "website": "https://emiratescargolink.ae",
+    "industry": "Logistics",
+    "location": "Dubai, UAE",
+    "employee_count": 240,
+    "pipeline_stage": "Contacted",
+    "lead_score": 92,
+    "score_explanation": "The single best-qualified lead not yet in conversation. 240 employees, last-mile delivery across all seven emirates, and a public WhatsApp channel that their own Instagram comments describe as slow. Uses HubSpot, so both the chatbot and CRM Integration apply. Head of CX is a former support agent, which usually means a receptive audience.",
+    "recommended_service": "WhatsApp AI Chatbot with CRM Integration",
+    "pitch_angle": "Last-mile means every delivery generates a 'where is it' message. Quantify: at their volume that is roughly 8,000 messages a week. Anchor on the 68% deflection number.",
+    "icp_fit": true,
+    "research_summary": "Emirates Cargo Link handles last-mile delivery for regional e-commerce brands. Public WhatsApp support number, plus a customer portal that requires a tracking number most customers do not keep. Instagram comments on recent posts repeatedly ask about delivery status — a public signal of unmet support demand. HubSpot detected. Raised a Series A eighteen months ago and doubled headcount since.",
+    "contacts": [
+      {
+        "name": "Fatima Al-Suwaidi",
+        "role": "Head of Customer Experience",
+        "email": "fatima.a@emiratescargolink.ae",
+        "linkedin_url": "https://linkedin.com/in/fatima-al-suwaidi",
+        "is_primary": true
+      },
+      {
+        "name": "Daniel Okoro",
+        "role": "COO",
+        "email": "daniel.o@emiratescargolink.ae",
+        "is_primary": false
+      }
+    ]
+  },
+  {
+    "id": "lead_005",
+    "company_name": "SouqDirect",
+    "website": "https://souqdirect.com",
+    "industry": "E-commerce",
+    "location": "Dubai, UAE",
+    "employee_count": 150,
+    "pipeline_stage": "Contacted",
+    "lead_score": 84,
+    "score_explanation": "Marketplace with heavy seasonal spikes and a support team that visibly does not scale with them. Shopify Plus and Zoho CRM both detected, so integration is straightforward. Scored below Emirates Cargo Link because the buying contact is a marketing lead rather than a support owner.",
+    "recommended_service": "WhatsApp AI Chatbot",
+    "pitch_angle": "Zahra Retail is the closest case study: 3x volume through Ramadan campaigns with no new hires, and a 23% lift in repeat purchase.",
+    "icp_fit": true,
+    "research_summary": "SouqDirect is a general-merchandise marketplace serving the UAE and Saudi Arabia. Runs large campaigns around Ramadan, White Friday, and back-to-school, and hires temporary support staff for each — three job postings for seasonal support agents in the last year. Shopify Plus, Zoho CRM, WhatsApp Business. Support is advertised as replying within 24 hours.",
+    "contacts": [
+      {
+        "name": "Hassan Malik",
+        "role": "Head of Growth",
+        "email": "hassan@souqdirect.com",
+        "linkedin_url": "https://linkedin.com/in/hassan-malik",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_006",
+    "company_name": "Desert Rose Trading",
+    "website": "https://desertrosetrading.ae",
+    "industry": "E-commerce",
+    "location": "Ajman, UAE",
+    "employee_count": 65,
+    "pipeline_stage": "Contacted",
+    "lead_score": 78,
+    "score_explanation": "At the bottom of our size band at 65 people, and the smaller support load means a longer payback on the chatbot. Still a real fit: WhatsApp is their only support channel and they have no CRM at all, so the AI Email Assistant may land before the chatbot does.",
+    "recommended_service": "AI Email Assistant",
+    "pitch_angle": "Their sales team is four people doing outreach by hand. Start with the email assistant at $1,200 — it is an easier first cheque than the chatbot, and it opens the door to the rest.",
+    "icp_fit": true,
+    "research_summary": "Desert Rose Trading imports and resells home goods across the northern emirates. Sells through Instagram and WhatsApp rather than a full storefront. Four-person sales team doing manual outreach to retail buyers. No CRM, no help desk, no automation detected. Growing steadily but running lean.",
+    "contacts": [
+      {
+        "name": "Noor Abdullah",
+        "role": "Managing Director",
+        "email": "noor@desertrosetrading.ae",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_007",
+    "company_name": "Gulfstream Retail",
+    "website": "https://gulfstreamretail.com",
+    "industry": "E-commerce",
+    "location": "Dubai, UAE",
+    "employee_count": 310,
+    "pipeline_stage": "Interested",
+    "lead_score": 85,
+    "score_explanation": "Large enough to have a real budget and a genuine volume problem — 310 employees with an in-house 20-person contact centre. Replied positively and asked for a deck. Held below 90 because an existing Freshdesk deployment means we are displacing a vendor, not filling a gap.",
+    "recommended_service": "WhatsApp AI Chatbot with CRM Integration",
+    "pitch_angle": "They already bought a help desk, so the pitch is not 'get tooling' — it is that Freshdesk still needs a human on every WhatsApp thread. Deflection is the number that matters.",
+    "icp_fit": true,
+    "research_summary": "Gulfstream Retail operates fashion and homeware brands across UAE and Qatar, both online and in 14 physical stores. In-house contact centre of about 20 people running on Freshdesk, with WhatsApp bolted on. Salesforce for commerce. Published a press release about a customer experience overhaul this year, which suggests budget is allocated and the mandate exists.",
+    "contacts": [
+      {
+        "name": "Priya Raghunathan",
+        "role": "Director of Customer Experience",
+        "email": "priya.r@gulfstreamretail.com",
+        "linkedin_url": "https://linkedin.com/in/priya-raghunathan",
+        "is_primary": true
+      },
+      {
+        "name": "Ahmed Zaki",
+        "role": "CTO",
+        "email": "ahmed.z@gulfstreamretail.com",
+        "is_primary": false
+      }
+    ]
+  },
+  {
+    "id": "lead_008",
+    "company_name": "Falcon Freight Systems",
+    "website": "https://falconfreight.ae",
+    "industry": "Logistics",
+    "location": "Dubai, UAE",
+    "employee_count": 200,
+    "pipeline_stage": "Qualified",
+    "lead_score": 79,
+    "score_explanation": "Good size and sector, and WhatsApp is clearly in use. Held under 80 because we could not find a named decision maker for customer operations — everything routes through a generic info@ address, which historically halves our reply rate.",
+    "recommended_service": "WhatsApp AI Chatbot",
+    "pitch_angle": "No named owner yet. Worth one enrichment pass to find the operations lead before sending anything.",
+    "icp_fit": true,
+    "research_summary": "Falcon Freight Systems runs air and sea freight forwarding from Dubai. Site lists a WhatsApp number for shipment enquiries. No CRM detected. Team page shows only executive leadership, no operational roles, so decision-maker discovery came back thin.",
+    "contacts": [
+      {
+        "name": "Info Desk",
+        "role": "General enquiries",
+        "email": "info@falconfreight.ae",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_009",
+    "company_name": "Marina Property Group",
+    "website": "https://marinapropertygroup.ae",
+    "industry": "Real Estate",
+    "location": "Dubai, UAE",
+    "employee_count": 140,
+    "pipeline_stage": "Qualified",
+    "lead_score": 72,
+    "score_explanation": "Real estate is a secondary vertical for us rather than the stated ICP focus of logistics and e-commerce, so it takes a deliberate haircut. On its own merits it is decent: 140 agents fielding viewing enquiries over WhatsApp all day, which is exactly the repetitive volume the chatbot handles.",
+    "recommended_service": "WhatsApp AI Chatbot",
+    "pitch_angle": "Viewing scheduling is the wedge. Every agent loses an hour a day to back-and-forth on times.",
+    "icp_fit": false,
+    "research_summary": "Marina Property Group is a residential brokerage across Dubai Marina and JBR. Roughly 140 agents, each publishing a personal WhatsApp number on listings. Enquiry handling is entirely manual and entirely per-agent. Uses Property Finder and Bayut portals. Outside the ICP's stated industries but a strong channel and volume match.",
+    "contacts": [
+      {
+        "name": "Khalid Bin Saeed",
+        "role": "Head of Sales",
+        "email": "khalid@marinapropertygroup.ae",
+        "linkedin_url": "https://linkedin.com/in/khalid-bin-saeed",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_010",
+    "company_name": "Oasis Distribution",
+    "website": "https://oasisdistribution.ae",
+    "industry": "Wholesale Distribution",
+    "location": "Ras Al Khaimah, UAE",
+    "employee_count": 85,
+    "pipeline_stage": "Qualified",
+    "lead_score": 65,
+    "score_explanation": "Borderline. Right country and roughly the right size, but B2B wholesale means a few hundred repeat accounts placing orders, not thousands of consumers asking questions. The volume that makes the chatbot pay for itself probably is not there.",
+    "recommended_service": "CRM Integration",
+    "pitch_angle": "Skip the chatbot. Their pain is order data scattered across WhatsApp threads and spreadsheets — CRM Integration at $1,800 is the honest recommendation.",
+    "icp_fit": true,
+    "research_summary": "Oasis Distribution wholesales FMCG goods to retailers across the northern emirates. Around 300 recurring B2B accounts. Orders arrive by WhatsApp and phone, then get keyed into spreadsheets by hand. No CRM. Real inefficiency, but low message volume relative to our consumer-facing customers.",
+    "contacts": [
+      {
+        "name": "Salem Al-Nuaimi",
+        "role": "Operations Director",
+        "email": "salem@oasisdistribution.ae",
+        "is_primary": true
+      }
+    ]
+  },
+  {
+    "id": "lead_011",
+    "company_name": "Nile Textiles Export",
+    "website": "https://niletextiles.eg",
+    "industry": "Manufacturing",
+    "location": "Cairo, Egypt",
+    "employee_count": 420,
+    "pipeline_stage": "Not Qualified",
+    "lead_score": 34,
+    "score_explanation": "Fails the ICP on both geography and industry — Egypt rather than UAE, textile manufacturing rather than logistics or e-commerce. No consumer support channel at all; they sell to a handful of wholesale buyers through account managers. There is nothing here for the chatbot to deflect.",
+    "recommended_service": null,
+    "pitch_angle": null,
+    "icp_fit": false,
+    "research_summary": "Nile Textiles Export manufactures cotton goods for European wholesale buyers. Sales run through roughly a dozen long-standing account relationships. No public support channel, no WhatsApp business presence, no CRM. Outside the ICP on location, industry, and channel.",
+    "contacts": []
+  },
+  {
+    "id": "lead_012",
+    "company_name": "Levant Courier Co",
+    "website": "https://levantcourier.com",
+    "industry": "Logistics",
+    "location": "Dubai, UAE",
+    "employee_count": 110,
+    "pipeline_stage": "Researching",
+    "lead_score": null,
+    "score_explanation": null,
+    "recommended_service": null,
+    "pitch_angle": null,
+    "icp_fit": null,
+    "research_summary": "Initial pass only. Regional courier operating between the UAE and the Levant, roughly 110 employees. WhatsApp number is present on the contact page. Deep research still running — site scrape, funding history, and contact enrichment are not back yet.",
+    "contacts": []
+  }
+]
