@@ -63,7 +63,7 @@ with a high volume of repetitive inbound customer messages, an existing CRM, and
 a support team that is visibly underwater.
 
 TECHNOLOGY
-Claude (Anthropic) for reasoning and generation, LangGraph for agent
+Google Gemini for reasoning and generation, LangGraph for agent
 orchestration, Qdrant for vector retrieval, WhatsApp Business API via Twilio,
 Python and FastAPI on the backend, React on the front end, deployed on AWS with
 optional on-premise for data-residency requirements.

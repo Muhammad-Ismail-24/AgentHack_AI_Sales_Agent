@@ -17,15 +17,15 @@
 | Backend | Python 3.11 + FastAPI |
 | Agent Orchestration | LangGraph |
 | RAG / Embeddings | LangChain + Qdrant (or Chroma locally) |
-| Database | PostgreSQL via Supabase |
+| Database | Cloud Firestore |
 | Short-term Memory | Redis |
 | Web Search | Tavily API |
 | Web Scraping | Playwright |
 | Contact Enrichment | Apollo.io / Hunter.io |
-| Email | Resend |
+| Email | SMTP (Gmail); Resend optional |
 | Meetings | Cal.com API |
 | WhatsApp | Twilio WhatsApp API |
-| LLM | Claude (claude-sonnet-4-6) via Anthropic SDK |
+| LLM | Google Gemini (gemini-3.5-flash) via langchain-google-genai |
 | Follow-up Scheduling | APScheduler |
 | Containerisation | Docker + docker-compose |
 
@@ -101,7 +101,7 @@ agenthack/                                 ← Root of the GitHub repo
 │   │
 │   ├── comms/                             # ── PERSON 2 ── All communication + scheduling
 │   │   ├── __init__.py
-│   │   ├── email_sender.py                # Sends emails via Resend API
+│   │   ├── email_sender.py                # Sends emails via SMTP (Resend fallback)
 │   │   ├── email_reader.py                # Polls inbox, fetches replies
 │   │   ├── response_classifier.py         # Classifies reply type (Interested / Objection / etc.)
 │   │   ├── followup_scheduler.py          # APScheduler: queues follow-up email after 3 days
@@ -113,7 +113,7 @@ agenthack/                                 ← Root of the GitHub repo
 │   │   ├── __init__.py
 │   │   ├── document_loader.py             # Reads PDF (PyMuPDF) or raw text
 │   │   ├── chunker.py                     # Splits document into overlapping chunks
-│   │   ├── embedder.py                    # Generates embeddings via Anthropic / OpenAI
+│   │   ├── embedder.py                    # Generates embeddings via Gemini
 │   │   ├── vector_store.py                # Qdrant client — upsert and query
 │   │   └── retriever.py                   # Query interface used by all agents
 │   │
@@ -124,17 +124,14 @@ agenthack/                                 ← Root of the GitHub repo
 │   │   └── long_term.py                   # DB read/write — leads, emails, meetings, history
 │   │
 │   │
-│   ├── db/                                # ── PERSON 3 ── Database models and queries
+│   ├── db/                                # ── PERSON 3 ── Firestore access layer
 │   │   ├── __init__.py
-│   │   ├── database.py                    # SQLAlchemy engine + Supabase client setup
-│   │   ├── models.py                      # All table models:
+│   │   ├── firestore.py                   # Client init + collection names
+│   │   ├── models.py                      # Document factories + stage/status constants:
 │   │   │                                  #   Lead, Contact, Email, Reply, Meeting,
-│   │   │                                  #   FollowUp, LeadScore, PipelineEvent
-│   │   ├── crud.py                        # All Create / Read / Update / Delete functions
-│   │   └── migrations/                    # Alembic migration files
-│   │       ├── env.py
-│   │       ├── script.py.mako
-│   │       └── versions/                  # Auto-generated migration scripts go here
+│   │   │                                  #   FollowUp, PipelineEvent
+│   │   ├── crud.py                        # All DB operations (sync, returns dicts)
+│   │   └── acrud.py                       # Async wrappers for FastAPI handlers
 │   │
 │   │
 │   ├── api/                               # ── PERSON 3 ── FastAPI route handlers
@@ -295,9 +292,9 @@ classifies replies, schedules meetings, and follows up automatically.
 - Backend: Python 3.11 + FastAPI
 - Agents: LangGraph
 - RAG: LangChain + Qdrant
-- DB: PostgreSQL (Supabase)
+- DB: Cloud Firestore
 - Cache/memory: Redis
-- LLM: claude-sonnet-4-6 (Anthropic SDK)
+- LLM: gemini-3.5-flash (langchain-google-genai)
 
 ## Key commands
 # Backend
@@ -314,7 +311,7 @@ docker-compose up --build
 - ALL LLM prompt templates → backend/config/prompts.py only
 - ALL TypeScript types → frontend/src/lib/types.ts only
 - ALL frontend API calls → frontend/src/lib/api.ts only
-- ALL DB queries → backend/db/crud.py only
+- ALL DB access → backend/db/crud.py (sync) or backend/db/acrud.py (async) only
 - Agents must never import from comms/ directly — go through the orchestrator
 
 ## DO NOTs
@@ -346,7 +343,7 @@ Controls what Claude Code can do without asking for confirmation.
       "Bash(npm run build)",
       "Bash(uvicorn *)",
       "Bash(python *)",
-      "Bash(alembic *)"
+      "Bash(playwright install *)"
     ],
     "deny": [
       "Read(.env)",
@@ -355,8 +352,7 @@ Controls what Claude Code can do without asking for confirmation.
       "Bash(curl * | bash)",
       "Bash(sudo *)"
     ]
-  },
-  "model": "claude-sonnet-4-6"
+  }
 }
 ```
 
@@ -394,9 +390,6 @@ data/seeds/*.pdf
 *.log
 *.tmp
 .DS_Store
-
-# DB migrations (generated — Claude doesn't need to read these)
-backend/db/migrations/versions/
 
 # Lock files (too noisy)
 package-lock.json
@@ -481,7 +474,7 @@ id, lead_id (FK), from_stage, to_stage, reason, created_at
 | `backend/config/prompts.py` | Person 1 (others can PR) | All LLM prompts |
 | `backend/comms/` | Person 2 | Email, follow-up, meeting, WhatsApp |
 | `backend/api/routes/` | Person 3 | All FastAPI endpoints |
-| `backend/db/` | Person 3 | DB models, migrations, CRUD |
+| `backend/db/` | Person 3 | Firestore client, document factories, CRUD |
 | `backend/memory/` | Person 3 | Short + long term memory |
 | `frontend/src/` | Person 3 | All React pages, components, hooks |
 | `frontend/src/lib/types.ts` | Person 3 (others can PR) | All TypeScript types |
@@ -498,7 +491,7 @@ id, lead_id (FK), from_stage, to_stage, reason, created_at
 4. **All LLM prompts → `backend/config/prompts.py`** — not scattered in agent files
 5. **All TypeScript types → `frontend/src/lib/types.ts`** — one source of truth
 6. **All backend API calls from frontend → `frontend/src/lib/api.ts`** — not from components
-7. **All DB queries → `backend/db/crud.py`** — no raw SQL in routes or agents
+7. **All DB access → `backend/db/crud.py` / `acrud.py`** — no Firestore calls in routes or agents
 8. **Use `backend/utils/logger.py`** — never use `print()` in backend code
 9. **Update `docs/env_variables.md`** every time you add a new environment variable
 10. **Update `.env.example`** every time you add a new environment variable

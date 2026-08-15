@@ -31,7 +31,7 @@ VALID_CLASSIFICATIONS = {
 
 
 def _mock_classify(reply_body: str) -> dict:
-    """Keyword heuristic used only when no ANTHROPIC_API_KEY is configured."""
+    """Keyword heuristic used only when no Gemini API key is configured."""
     text = reply_body.lower()
     if any(w in text for w in ("schedule a call", "book a", "meet", "call this week")):
         classification = "Meeting Requested"

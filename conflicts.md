@@ -1,3 +1,13 @@
+> ## ⚠️ SUPERSEDED — kept for history only
+>
+> The merge this file plans for has happened. Every item below is done, and
+> some of it is now **wrong**: the project's database is Cloud Firestore, not
+> PostgreSQL, and the two stand-ins referenced throughout (`comms/_shim.py`,
+> `comms/_firestore_crud.py`) have been deleted — `comms/_deps.py` resolves
+> straight to the real `db.crud`.
+>
+> **Read [`merge_notes.md`](merge_notes.md) instead.**
+
 # Conflicts / Merge Checklist — Comms Layer → Wajeeh's Backend
 
 **Status: Sufiyan's section (sufiyan_work.md, all 9 steps) is functionally
