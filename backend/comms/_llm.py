@@ -1,130 +1,64 @@
-"""
-Shared Claude client for the comms layer. Reused by response_classifier.py,
-followup_scheduler.py, and (later) meeting_manager.py's briefing generator.
+"""Shared LLM client for the comms layer — reply classification, follow-up
+drafting, and meeting briefings.
 
-Model: claude-sonnet-4-6 (per root CLAUDE.md).
+Originally written against Claude. The project runs on Google Gemini (the
+agents already do, and the deployed key set is Gemini-only), so this now
+delegates to `agents.llm_utils`, which owns the single Gemini client. The
+public interface is unchanged: `complete_json(system, user, ...)` still
+returns a parsed dict, still never raises, and still falls back to
+`mock_fallback()` when no key is configured.
 
-Two model-specific constraints shape this module:
-  - output_config.format (structured outputs) is NOT supported on
-    claude-sonnet-4-6, and assistant-turn prefill (the other common way to
-    force JSON output) returns a 400 on this model. So we ask for JSON in
-    the system prompt and parse defensively instead of relying on either
-    API-level guarantee.
-  - Classification / short-form generation is not a reasoning-heavy task,
-    so thinking is disabled and effort is set to "low" for latency + cost.
-    `effort` is GA on Sonnet 4.6 (no beta header needed).
-
-When ANTHROPIC_API_KEY is not set, complete_json() runs in mock mode: it
-returns a plausible fake response instead of raising, driven by a small
-keyword heuristic supplied by the caller. This keeps test_comms.py runnable
-with zero API keys configured.
+Gemini has no separate "system" role in this path, so the system and user
+prompts are concatenated — which is how the agent prompts are already
+structured.
 """
 
-import json
-import re
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from comms._deps import get_logger, settings
 
 _log = get_logger("comms.llm")
 
-MODEL = "claude-sonnet-4-6"
-
-_client = None
-_client_checked = False
-
-
-def _get_client():
-    """Lazily construct the AsyncAnthropic client. Returns None in mock mode."""
-    global _client, _client_checked
-    if _client_checked:
-        return _client
-    _client_checked = True
-    if not settings.ANTHROPIC_API_KEY:
-        _log.warning("ANTHROPIC_API_KEY not set - comms LLM calls running in MOCK MODE")
-        return None
-    try:
-        from anthropic import AsyncAnthropic
-
-        _client = AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
-    except ImportError:
-        _log.warning("anthropic package not installed - comms LLM calls running in MOCK MODE")
-        _client = None
-    return _client
-
 
 def is_mock_mode() -> bool:
-    return _get_client() is None
-
-
-def _extract_json(text: str) -> dict:
-    """
-    Defensive JSON extraction. Since sonnet-4-6 supports neither structured
-    outputs nor assistant prefill, the model's response is plain text that
-    is *supposed* to be pure JSON but may include stray whitespace, markdown
-    fences, or (rarely) a leading sentence. Try straightforward parsing
-    first, then fall back to grabbing the outermost {...} span.
-    """
-    text = text.strip()
-    # Strip markdown code fences if present.
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*", "", text)
-        text = re.sub(r"\s*```$", "", text)
-        text = text.strip()
-
-    try:
-        return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-
-    match = re.search(r"\{.*\}", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-
-    _log.error("Failed to parse JSON from model response: %r", text[:500])
-    return {}
+    """True when no Gemini key is configured, so callers can skip network work."""
+    return not settings.google_api_key
 
 
 async def complete_json(
     system: str,
     user: str,
-    max_tokens: int = 1024,
+    max_tokens: int = 1024,  # noqa: ARG001 - kept for call-site compatibility
     mock_fallback: Optional[Callable[[], dict]] = None,
 ) -> dict:
+    """Send a system+user prompt to Gemini and parse the response as JSON.
+
+    Returns {} if the call fails or the response cannot be parsed — callers
+    must handle the empty-dict case rather than assume a shape. In mock mode
+    (no API key) calls `mock_fallback()` if given, else returns {}.
     """
-    Send a system+user prompt to Claude and parse the response as JSON.
-
-    Returns {} if the model call fails or the response can't be parsed as
-    JSON — callers must handle the empty-dict case rather than assume a
-    shape, since we have no structured-output guarantee on this model.
-
-    In mock mode (no API key / no anthropic package), calls mock_fallback()
-    if provided, else returns {}.
-    """
-    client = _get_client()
-
-    if client is None:
-        if mock_fallback is not None:
-            return mock_fallback()
-        return {}
+    if is_mock_mode():
+        _log.warning("no Gemini API key set — comms LLM running in MOCK MODE")
+        return mock_fallback() if mock_fallback is not None else {}
 
     try:
-        response = await client.messages.create(
-            model=MODEL,
-            max_tokens=max_tokens,
-            thinking={"type": "disabled"},
-            output_config={"effort": "low"},
-            system=system,
-            messages=[{"role": "user", "content": user}],
-        )
-    except Exception as exc:  # noqa: BLE001 — comms layer must not crash the pipeline
-        _log.error("Claude API call failed: %s", exc)
-        if mock_fallback is not None:
-            return mock_fallback()
-        return {}
+        from agents.llm_utils import call_llm_json
+    except ImportError as exc:  # pragma: no cover
+        _log.error("agents.llm_utils unavailable (%s)", exc)
+        return mock_fallback() if mock_fallback is not None else {}
 
-    text = next((block.text for block in response.content if block.type == "text"), "")
-    return _extract_json(text)
+    prompt = f"{system.strip()}\n\n{user.strip()}" if system else user
+
+    try:
+        result = await call_llm_json(prompt)
+    except Exception as exc:  # noqa: BLE001 - comms must never crash the pipeline
+        _log.error("Gemini call failed: %s", exc)
+        return mock_fallback() if mock_fallback is not None else {}
+
+    if isinstance(result, dict):
+        return result
+    if isinstance(result, list) and result and isinstance(result[0], dict):
+        return result[0]
+
+    _log.error("LLM returned no usable JSON object")
+    return mock_fallback() if mock_fallback is not None else {}

@@ -1,32 +1,19 @@
-"""SQLAlchemy models — the single source of truth for the database schema.
+"""Document shapes and the enum-ish constants shared across the codebase.
 
-Any change here must also be reflected in:
-  - .claude/skills/database-schema.md
-  - docs/database_schema.md
-  - frontend/src/lib/types.ts
-and needs an Alembic migration.
+Persistence is Firestore, so there is no ORM here — a "model" is just a dict
+with a known set of keys. These factories exist so every writer produces the
+same shape, and so defaults live in one place.
+
+Collections mirror the relational layout (leads, contacts, emails, replies,
+meetings, followups, pipeline_events) with `lead_id` / `email_id` fields
+rather than nesting, which keeps the queries simple.
 """
 
 import uuid
 from datetime import datetime, timezone
-
-from sqlalchemy import (
-    JSON,
-    Boolean,
-    DateTime,
-    ForeignKey,
-    Index,
-    Integer,
-    String,
-    Text,
-)
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-
-from db.database import Base
+from typing import Any
 
 # ── Enum-ish string constants ────────────────────────────────────────
-# Kept as plain strings (not DB enums) so adding a stage during the
-# hackathon never needs a migration.
 
 PIPELINE_STAGES = [
     "Discovered",
@@ -58,209 +45,161 @@ CLASSIFICATIONS = [
 ]
 
 
-def _uuid() -> str:
+def new_id() -> str:
     return str(uuid.uuid4())
 
 
-def _now() -> datetime:
+def now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-class Lead(Base):
-    """A prospect company discovered and worked by the pipeline."""
+# ── Document factories ───────────────────────────────────────────────
+# Every field is written explicitly, including the None ones, so a document
+# read back always has the full key set and callers never need .get() guards.
 
-    __tablename__ = "leads"
+LEAD_FIELDS = {
+    "company_name", "website", "industry", "location", "employee_count",
+    "pipeline_stage", "lead_score", "score_explanation", "recommended_service",
+    "pitch_angle", "icp_fit", "research_summary", "apollo_data", "session_id",
+}
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    company_name: Mapped[str] = mapped_column(String(255), nullable=False)
-    website: Mapped[str | None] = mapped_column(String(512))
-    industry: Mapped[str | None] = mapped_column(String(255))
-    location: Mapped[str | None] = mapped_column(String(255))
-    employee_count: Mapped[int | None] = mapped_column(Integer)
-
-    pipeline_stage: Mapped[str] = mapped_column(
-        String(64), default="Discovered", nullable=False
-    )
-    lead_score: Mapped[int | None] = mapped_column(Integer)
-    score_explanation: Mapped[str | None] = mapped_column(Text)
-    recommended_service: Mapped[str | None] = mapped_column(String(255))
-    pitch_angle: Mapped[str | None] = mapped_column(Text)
-    icp_fit: Mapped[bool | None] = mapped_column(Boolean)
-    research_summary: Mapped[str | None] = mapped_column(Text)
-    apollo_data: Mapped[dict | None] = mapped_column(JSON)
-
-    session_id: Mapped[str | None] = mapped_column(String(64))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=_now, onupdate=_now
-    )
-
-    contacts: Mapped[list["Contact"]] = relationship(
-        back_populates="lead", cascade="all, delete-orphan", lazy="selectin"
-    )
-    emails: Mapped[list["Email"]] = relationship(
-        back_populates="lead", cascade="all, delete-orphan", lazy="selectin"
-    )
-    meetings: Mapped[list["Meeting"]] = relationship(
-        back_populates="lead", cascade="all, delete-orphan", lazy="selectin"
-    )
-    followups: Mapped[list["FollowUp"]] = relationship(
-        back_populates="lead", cascade="all, delete-orphan", lazy="selectin"
-    )
-    events: Mapped[list["PipelineEvent"]] = relationship(
-        back_populates="lead", cascade="all, delete-orphan", lazy="selectin"
-    )
-
-    __table_args__ = (
-        Index("ix_leads_session_id", "session_id"),
-        Index("ix_leads_pipeline_stage", "pipeline_stage"),
-        Index("ix_leads_company_name", "company_name"),
-    )
+CONTACT_FIELDS = {"name", "role", "email", "linkedin_url", "is_primary"}
 
 
-class Contact(Base):
-    """A decision maker at a lead company."""
-
-    __tablename__ = "contacts"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    lead_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    name: Mapped[str | None] = mapped_column(String(255))
-    role: Mapped[str | None] = mapped_column(String(255))
-    email: Mapped[str | None] = mapped_column(String(320))
-    linkedin_url: Mapped[str | None] = mapped_column(String(512))
-    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    lead: Mapped["Lead"] = relationship(back_populates="contacts")
-    emails: Mapped[list["Email"]] = relationship(back_populates="contact")
-
-    __table_args__ = (
-        Index("ix_contacts_lead_id", "lead_id"),
-        Index("ix_contacts_email", "email"),
-    )
+def lead_doc(data: dict[str, Any], doc_id: str | None = None) -> dict[str, Any]:
+    return {
+        "id": doc_id or data.get("id") or new_id(),
+        "company_name": data.get("company_name"),
+        "website": data.get("website"),
+        "industry": data.get("industry"),
+        "location": data.get("location"),
+        "employee_count": data.get("employee_count"),
+        "pipeline_stage": data.get("pipeline_stage") or "Discovered",
+        "lead_score": data.get("lead_score"),
+        "score_explanation": data.get("score_explanation"),
+        "recommended_service": data.get("recommended_service"),
+        "pitch_angle": data.get("pitch_angle"),
+        "icp_fit": data.get("icp_fit"),
+        "research_summary": data.get("research_summary"),
+        "apollo_data": data.get("apollo_data"),
+        "session_id": data.get("session_id"),
+        "created_at": data.get("created_at") or now(),
+        "updated_at": data.get("updated_at") or now(),
+    }
 
 
-class Email(Base):
-    """An outreach email — drafted, sent, failed, or replied to."""
-
-    __tablename__ = "emails"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    lead_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    contact_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("contacts.id", ondelete="SET NULL")
-    )
-    subject: Mapped[str | None] = mapped_column(String(512))
-    body: Mapped[str | None] = mapped_column(Text)
-    status: Mapped[str] = mapped_column(String(32), default="draft", nullable=False)
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    lead: Mapped["Lead"] = relationship(back_populates="emails")
-    contact: Mapped["Contact | None"] = relationship(back_populates="emails")
-    replies: Mapped[list["Reply"]] = relationship(
-        back_populates="email", cascade="all, delete-orphan", lazy="selectin"
-    )
-
-    __table_args__ = (
-        Index("ix_emails_lead_id", "lead_id"),
-        Index("ix_emails_status", "status"),
-    )
+def contact_doc(
+    data: dict[str, Any], lead_id: str, doc_id: str | None = None
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or data.get("id") or new_id(),
+        "lead_id": lead_id,
+        "name": data.get("name"),
+        "role": data.get("role"),
+        "email": data.get("email"),
+        "linkedin_url": data.get("linkedin_url"),
+        "is_primary": bool(data.get("is_primary", False)),
+        "created_at": data.get("created_at") or now(),
+    }
 
 
-class Reply(Base):
-    """An inbound reply to an outreach email, plus its classification."""
-
-    __tablename__ = "replies"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    email_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("emails.id", ondelete="CASCADE"), nullable=False
-    )
-    raw_body: Mapped[str | None] = mapped_column(Text)
-    classification: Mapped[str | None] = mapped_column(String(64))
-    summary: Mapped[str | None] = mapped_column(Text)
-    next_action: Mapped[str | None] = mapped_column(String(512))
-    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    email: Mapped["Email"] = relationship(back_populates="replies")
-
-    __table_args__ = (Index("ix_replies_email_id", "email_id"),)
-
-
-class Meeting(Base):
-    """A booked (or offered) meeting with a lead's contact."""
-
-    __tablename__ = "meetings"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    lead_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    contact_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("contacts.id", ondelete="SET NULL")
-    )
-    meeting_link: Mapped[str | None] = mapped_column(String(512))
-    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    briefing: Mapped[dict | None] = mapped_column(JSON)
-    admin_notified: Mapped[bool] = mapped_column(Boolean, default=False)
-    status: Mapped[str] = mapped_column(String(32), default="link_sent", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    lead: Mapped["Lead"] = relationship(back_populates="meetings")
-
-    __table_args__ = (
-        Index("ix_meetings_lead_id", "lead_id"),
-        Index("ix_meetings_scheduled_at", "scheduled_at"),
-    )
+def email_doc(
+    lead_id: str,
+    contact_id: str | None,
+    subject: str | None,
+    body: str | None,
+    status: str = "draft",
+    sent_at: datetime | None = None,
+    doc_id: str | None = None,
+    created_at: datetime | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "contact_id": contact_id,
+        "subject": subject,
+        "body": body,
+        "status": status,
+        "sent_at": sent_at or (now() if status == "sent" else None),
+        "created_at": created_at or now(),
+    }
 
 
-class FollowUp(Base):
-    """A scheduled follow-up on an outreach email that got no reply."""
-
-    __tablename__ = "followups"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    lead_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    original_email_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("emails.id", ondelete="CASCADE"), nullable=False
-    )
-    followup_email_id: Mapped[str | None] = mapped_column(
-        String(36), ForeignKey("emails.id", ondelete="SET NULL")
-    )
-    scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
-
-    lead: Mapped["Lead"] = relationship(back_populates="followups")
-
-    __table_args__ = (
-        Index("ix_followups_lead_id", "lead_id"),
-        Index("ix_followups_original_email_id", "original_email_id"),
-    )
+def reply_doc(
+    email_id: str,
+    raw_body: str | None,
+    classification: str | None = None,
+    summary: str | None = None,
+    next_action: str | None = None,
+    received_at: datetime | None = None,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or new_id(),
+        "email_id": email_id,
+        "raw_body": raw_body,
+        "classification": classification,
+        "summary": summary,
+        "next_action": next_action,
+        "received_at": received_at or now(),
+    }
 
 
-class PipelineEvent(Base):
-    """An audit trail row — one per stage transition, for the lead timeline."""
+def meeting_doc(
+    lead_id: str,
+    contact_id: str | None,
+    meeting_link: str | None,
+    scheduled_at: datetime | None = None,
+    briefing: dict | None = None,
+    status: str = "link_sent",
+    admin_notified: bool = False,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "contact_id": contact_id,
+        "meeting_link": meeting_link,
+        "scheduled_at": scheduled_at,
+        "briefing": briefing,
+        "admin_notified": admin_notified,
+        "status": status,
+        "created_at": now(),
+    }
 
-    __tablename__ = "pipeline_events"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    lead_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("leads.id", ondelete="CASCADE"), nullable=False
-    )
-    from_stage: Mapped[str | None] = mapped_column(String(64))
-    to_stage: Mapped[str | None] = mapped_column(String(64))
-    reason: Mapped[str | None] = mapped_column(String(512))
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now)
+def followup_doc(
+    lead_id: str,
+    original_email_id: str,
+    scheduled_for: datetime | None = None,
+    status: str = "pending",
+    followup_email_id: str | None = None,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "original_email_id": original_email_id,
+        "followup_email_id": followup_email_id,
+        "scheduled_for": scheduled_for,
+        "status": status,
+        "created_at": now(),
+    }
 
-    lead: Mapped["Lead"] = relationship(back_populates="events")
 
-    __table_args__ = (Index("ix_pipeline_events_lead_id", "lead_id"),)
+def event_doc(
+    lead_id: str,
+    from_stage: str | None,
+    to_stage: str | None,
+    reason: str | None = None,
+    created_at: datetime | None = None,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "from_stage": from_stage,
+        "to_stage": to_stage,
+        "reason": reason,
+        "created_at": created_at or now(),
+    }

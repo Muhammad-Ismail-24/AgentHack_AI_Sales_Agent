@@ -10,6 +10,7 @@ tuning, and Sufiyan's comms keys. Import the singleton, never os.getenv:
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Repo root — backend/config/settings.py -> backend/ -> repo root
@@ -42,7 +43,10 @@ class Settings(BaseSettings):
     # look for by convention. Either works — read `google_api_key`.
     GEMINI_API_KEY: str = ""
     GOOGLE_API_KEY: str = ""
-    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash"
+    # Used automatically if GEMINI_MODEL has been retired. `-latest` aliases
+    # track the current release, so this keeps working without a code change.
+    GEMINI_FALLBACK_MODEL: str = "gemini-flash-latest"
     GEMINI_MAX_TOKENS: int = 4096
 
     # ── Embeddings ───────────────────────────────────────────────────
@@ -116,6 +120,79 @@ class Settings(BaseSettings):
     FOLLOWUP_AFTER_DAYS: int = 3
     PIPELINE_STATE_TTL_SECONDS: int = 60 * 60 * 2  # 2 hours
 
+    # ── Normalisers ──────────────────────────────────────────────────
+
+    @field_validator("REDIS_URL", mode="before")
+    @classmethod
+    def _normalise_redis_url(cls, value: object) -> str:
+        """Coerce whatever the Redis dashboard gave you into a usable URL.
+
+        Handles three shapes people actually paste:
+          * a full `redis://` / `rediss://` URL — used as-is;
+          * a bare `host:port` — gets a scheme;
+          * an entire `redis-cli --tls -u redis://...` command line — the URL
+            is extracted out of it.
+
+        redis-py rejects anything else outright, and a bad cache URL should
+        never be the thing that stops the app booting.
+        """
+        import re
+
+        raw = str(value or "").strip()
+        if not raw:
+            return "redis://localhost:6379/0"
+
+        # A pasted command line: pull the first redis:// or rediss:// token.
+        match = re.search(r"rediss?://\S+", raw)
+        if match:
+            url = match.group(0)
+            # `redis-cli --tls -u redis://...` means TLS is required even
+            # though the URL says otherwise. Managed Redis (Upstash, Redis
+            # Cloud) closes the connection outright without it.
+            if "--tls" in raw and url.startswith("redis://"):
+                url = url.replace("redis://", "rediss://", 1)
+            return url
+
+        if "://" in raw:
+            return raw
+
+        # Bare host:port, possibly still wrapped in CLI flags.
+        token = next(
+            (
+                part
+                for part in raw.split()
+                if ":" in part and not part.startswith("-")
+            ),
+            None,
+        )
+        return f"redis://{token or raw}"
+
+    @field_validator("QDRANT_URL", mode="before")
+    @classmethod
+    def _normalise_qdrant_url(cls, value: object) -> str:
+        url = str(value or "").strip()
+        if not url:
+            return "http://localhost:6333"
+        if "://" in url:
+            return url
+        return f"https://{url}"
+
+    @field_validator("GEMINI_MODEL", "CALENDAR_BASE_URL", mode="before")
+    @classmethod
+    def _fall_back_when_blank(cls, value: object, info) -> object:
+        """An empty value in the env file must not beat the default."""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            field = cls.model_fields[info.field_name]
+            return field.default
+        return value
+
+    @field_validator("SMTP_PORT", mode="before")
+    @classmethod
+    def _default_smtp_port(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return 587
+        return value
+
     # ── Effective-value helpers ──────────────────────────────────────
 
     @property
@@ -129,7 +206,16 @@ class Settings(BaseSettings):
 
     @property
     def sender_email(self) -> str:
-        """The From address — falls back to the SMTP account itself."""
+        """The From address to send as.
+
+        When SMTP is the transport the From must be the authenticated
+        mailbox — Gmail rewrites or rejects anything else, and a leftover
+        `onboarding@resend.dev` from the Resend setup would silently break
+        deliverability. So SMTP_USER wins whenever SMTP is configured, and
+        SENDER_EMAIL is only used for the Resend path.
+        """
+        if self.smtp_configured:
+            return self.SMTP_USER or self.SENDER_EMAIL
         return self.SENDER_EMAIL or self.SMTP_USER
 
     @property

@@ -1,690 +1,627 @@
-"""Every database operation in the project. No raw SQL anywhere else.
+"""Every database operation in the project, against Firestore.
 
-All functions are async and take an AsyncSession as their first argument.
-Routes get one from Depends(get_db); background code uses session_scope().
+These functions are **synchronous**, because the Firestore Admin SDK is.
+That is deliberate: the comms layer runs inside APScheduler jobs which
+cannot await, and Sufiyan's routers call `crud.x()` directly. FastAPI route
+handlers use `db/acrud.py`, which wraps each of these in a thread so the
+event loop is never blocked.
 
-Synchronous callers (the comms layer's APScheduler jobs) should import
-db.sync_crud instead, which mirrors these functions on a sync session.
+Two naming conventions are exported on purpose:
+
+  * the names Sufiyan's comms layer codes against — `get_meetings_needing_
+    reminder`, `mark_meeting_admin_notified`, `get_contact` — with exactly
+    the signatures in `comms/_shim.py`, so nothing in comms/ needed editing;
+  * the richer names my routes and memory layer use — `get_all_leads`,
+    `upsert_leads_from_pipeline`, `count_leads_by_stage`, and friends.
+
+Every function returns plain dicts (or None), never SDK document objects.
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, Optional
 
-from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from db import firestore as fs
 from db.models import (
-    Contact,
-    Email,
-    FollowUp,
-    Lead,
-    Meeting,
-    PipelineEvent,
-    Reply,
+    CONTACT_FIELDS,
+    LEAD_FIELDS,
+    contact_doc,
+    email_doc,
+    event_doc,
+    followup_doc,
+    lead_doc,
+    meeting_doc,
+    new_id,
+    reply_doc,
 )
 from utils.logger import get_logger
-from utils.validators import clamp_score
 
 log = get_logger(__name__)
-
-# Columns a caller is allowed to set when creating/updating a Lead. Anything
-# else in an incoming dict (agent state carries extra keys) is ignored rather
-# than blowing up.
-_LEAD_FIELDS = {
-    "company_name", "website", "industry", "location", "employee_count",
-    "pipeline_stage", "lead_score", "score_explanation", "recommended_service",
-    "pitch_angle", "icp_fit", "research_summary", "apollo_data", "session_id",
-}
-
-_CONTACT_FIELDS = {"name", "role", "email", "linkedin_url", "is_primary"}
 
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _filter_lead_fields(data: dict[str, Any]) -> dict[str, Any]:
-    clean = {k: v for k, v in data.items() if k in _LEAD_FIELDS}
-    if "lead_score" in clean:
-        clean["lead_score"] = clamp_score(clean["lead_score"])
-    return clean
+# ── low-level helpers ────────────────────────────────────────────────
+
+def _set(collection: str, doc: dict[str, Any]) -> dict[str, Any]:
+    fs.collection(collection).document(doc["id"]).set(doc)
+    return doc
+
+
+def _get(collection: str, doc_id: str | None) -> dict | None:
+    if not doc_id:
+        return None
+    snap = fs.collection(collection).document(doc_id).get()
+    return snap.to_dict() if snap.exists else None
+
+
+def _all(collection: str) -> list[dict]:
+    return [d.to_dict() for d in fs.collection(collection).stream()]
+
+
+def _where(collection: str, field: str, value: Any) -> list[dict]:
+    """Single-field equality query.
+
+    Firestore's composite filters need matching indexes, and the dataset here
+    is small, so anything more complex is filtered in Python instead — one
+    indexed lookup, then plain list comprehensions.
+    """
+    query = fs.collection(collection).where(field, "==", value)
+    return [d.to_dict() for d in query.stream()]
+
+
+def _patch(collection: str, doc_id: str, updates: dict[str, Any]) -> dict | None:
+    ref = fs.collection(collection).document(doc_id)
+    snap = ref.get()
+    if not snap.exists:
+        return None
+    ref.update(updates)
+    merged = {**snap.to_dict(), **updates}
+    return merged
+
+
+def _as_dt(value: Any) -> datetime | None:
+    """Firestore hands timestamps back as tz-aware datetimes; be tolerant of
+    strings (from seed files) and naive values so comparisons never explode."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    # google.api_core DatetimeWithNanoseconds and friends
+    try:
+        return value.replace(tzinfo=value.tzinfo or timezone.utc)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _sorted(rows: list[dict], key: str, reverse: bool = False) -> list[dict]:
+    """Sort by a datetime field, tolerating missing values (they sink)."""
+    floor = datetime.min.replace(tzinfo=timezone.utc)
+    return sorted(rows, key=lambda r: _as_dt(r.get(key)) or floor, reverse=reverse)
+
+
+def _clamp_score(score: Any) -> int | None:
+    if score is None:
+        return None
+    try:
+        return max(0, min(100, int(round(float(score)))))
+    except (TypeError, ValueError):
+        return None
 
 
 # ══════════════════════════════════════════════════════════════════════
 # LEADS
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_lead(db: AsyncSession, lead_dict: dict[str, Any]) -> Lead:
-    """Insert a lead and log its arrival as a PipelineEvent."""
-    lead = Lead(**_filter_lead_fields(lead_dict))
-    db.add(lead)
-    await db.flush()
-
-    db.add(
-        PipelineEvent(
-            lead_id=lead.id,
-            from_stage=None,
-            to_stage=lead.pipeline_stage,
-            reason="Lead discovered",
-        )
+def create_lead(lead_dict: dict[str, Any]) -> dict:
+    """Insert a lead and log its arrival on the timeline."""
+    doc = lead_doc(lead_dict)
+    doc["lead_score"] = _clamp_score(doc["lead_score"])
+    _set(fs.LEADS, doc)
+    _set(
+        fs.PIPELINE_EVENTS,
+        event_doc(doc["id"], None, doc["pipeline_stage"], "Lead discovered"),
     )
-    await db.commit()
-    await db.refresh(lead)
-    log.info("created lead %s (%s)", lead.company_name, lead.id)
-    return lead
+    log.info("created lead %s (%s)", doc["company_name"], doc["id"])
+    return doc
 
 
-async def get_lead(db: AsyncSession, lead_id: str) -> Lead | None:
-    return await db.get(Lead, lead_id)
+def get_lead(lead_id: str) -> dict | None:
+    return _get(fs.LEADS, lead_id)
 
 
-async def get_all_leads(db: AsyncSession, session_id: str | None = None) -> list[Lead]:
-    """All leads, newest first. Pass session_id to scope to one pipeline run."""
-    stmt = select(Lead).order_by(Lead.created_at.desc())
-    if session_id:
-        stmt = stmt.where(Lead.session_id == session_id)
-    result = await db.execute(stmt)
-    return list(result.scalars().unique().all())
+def get_all_leads(session_id: str | None = None) -> list[dict]:
+    """All leads, newest first. Pass session_id to scope to one run."""
+    rows = _where(fs.LEADS, "session_id", session_id) if session_id else _all(fs.LEADS)
+    return _sorted(rows, "created_at", reverse=True)
 
 
-async def get_lead_by_company(
-    db: AsyncSession, company_name: str, session_id: str | None = None
-) -> Lead | None:
-    """Case-insensitive lookup — used to dedupe leads across pipeline passes."""
-    stmt = select(Lead).where(func.lower(Lead.company_name) == company_name.lower())
-    if session_id:
-        stmt = stmt.where(Lead.session_id == session_id)
-    result = await db.execute(stmt)
-    return result.scalars().first()
+def get_lead_by_company(
+    company_name: str, session_id: str | None = None
+) -> dict | None:
+    """Case-insensitive lookup — used to dedupe across pipeline passes."""
+    target = (company_name or "").strip().lower()
+    for row in get_all_leads(session_id):
+        if (row.get("company_name") or "").strip().lower() == target:
+            return row
+    return None
 
 
-async def update_lead_stage(
-    db: AsyncSession, lead_id: str, new_stage: str, reason: str | None = None
-) -> Lead | None:
-    """Move a lead to a new stage and record the transition on its timeline."""
-    lead = await db.get(Lead, lead_id)
+def update_lead_stage(
+    lead_id: str, stage: str, reason: str | None = None
+) -> dict | None:
+    """Move a lead to a new stage and record the transition."""
+    lead = get_lead(lead_id)
     if lead is None:
         log.warning("update_lead_stage: lead %s not found", lead_id)
         return None
 
-    old_stage = lead.pipeline_stage
-    if old_stage == new_stage:
+    old_stage = lead.get("pipeline_stage")
+    if old_stage == stage:
         return lead
 
-    lead.pipeline_stage = new_stage
-    db.add(
-        PipelineEvent(
-            lead_id=lead.id,
-            from_stage=old_stage,
-            to_stage=new_stage,
-            reason=reason or "Stage updated",
-        )
+    updated = _patch(fs.LEADS, lead_id, {"pipeline_stage": stage, "updated_at": _now()})
+    _set(
+        fs.PIPELINE_EVENTS,
+        event_doc(lead_id, old_stage, stage, reason or "Stage updated"),
     )
-    await db.commit()
-    await db.refresh(lead)
-    log.info("lead %s: %s -> %s", lead.company_name, old_stage, new_stage)
-    return lead
+    log.info("lead %s: %s -> %s", lead.get("company_name"), old_stage, stage)
+    return updated
 
 
-async def update_lead_score(
-    db: AsyncSession, lead_id: str, score: int, explanation: str | None = None
-) -> Lead | None:
-    lead = await db.get(Lead, lead_id)
+def update_lead(lead_id: str, updates: dict[str, Any]) -> dict | None:
+    """Partial update. A stage change here still writes a timeline event."""
+    lead = get_lead(lead_id)
     if lead is None:
         return None
-    lead.lead_score = clamp_score(score)
-    if explanation is not None:
-        lead.score_explanation = explanation
-    await db.commit()
-    await db.refresh(lead)
+
+    clean = {k: v for k, v in updates.items() if k in LEAD_FIELDS}
+    if "lead_score" in clean:
+        clean["lead_score"] = _clamp_score(clean["lead_score"])
+
+    new_stage = clean.pop("pipeline_stage", None)
+    if clean:
+        clean["updated_at"] = _now()
+        lead = _patch(fs.LEADS, lead_id, clean) or lead
+
+    if new_stage and new_stage != lead.get("pipeline_stage"):
+        lead = update_lead_stage(lead_id, new_stage, "Updated manually") or lead
+
     return lead
 
 
-async def update_lead_research(
-    db: AsyncSession,
+def update_lead_score(
+    lead_id: str, score: int, explanation: str | None = None
+) -> dict | None:
+    updates: dict[str, Any] = {"lead_score": _clamp_score(score), "updated_at": _now()}
+    if explanation is not None:
+        updates["score_explanation"] = explanation
+    return _patch(fs.LEADS, lead_id, updates)
+
+
+def update_lead_research(
     lead_id: str,
     research_summary: str | None = None,
     apollo_data: dict | None = None,
-) -> Lead | None:
-    lead = await db.get(Lead, lead_id)
-    if lead is None:
-        return None
+) -> dict | None:
+    updates: dict[str, Any] = {"updated_at": _now()}
     if research_summary is not None:
-        lead.research_summary = research_summary
+        updates["research_summary"] = research_summary
     if apollo_data is not None:
-        lead.apollo_data = apollo_data
-    await db.commit()
-    await db.refresh(lead)
-    return lead
+        updates["apollo_data"] = apollo_data
+    return _patch(fs.LEADS, lead_id, updates)
 
 
-async def update_lead_service(
-    db: AsyncSession,
+def update_lead_service(
     lead_id: str,
     recommended_service: str | None = None,
     pitch_angle: str | None = None,
-) -> Lead | None:
-    lead = await db.get(Lead, lead_id)
-    if lead is None:
-        return None
+) -> dict | None:
+    updates: dict[str, Any] = {"updated_at": _now()}
     if recommended_service is not None:
-        lead.recommended_service = recommended_service
+        updates["recommended_service"] = recommended_service
     if pitch_angle is not None:
-        lead.pitch_angle = pitch_angle
-    await db.commit()
-    await db.refresh(lead)
-    return lead
+        updates["pitch_angle"] = pitch_angle
+    return _patch(fs.LEADS, lead_id, updates)
 
 
-async def update_lead(
-    db: AsyncSession, lead_id: str, updates: dict[str, Any]
-) -> Lead | None:
-    """Generic partial update. Stage changes here still log a PipelineEvent."""
-    lead = await db.get(Lead, lead_id)
-    if lead is None:
-        return None
+def delete_lead(lead_id: str) -> bool:
+    """Remove a lead and everything hanging off it (no cascades in Firestore)."""
+    if get_lead(lead_id) is None:
+        return False
 
-    clean = _filter_lead_fields(updates)
-    new_stage = clean.pop("pipeline_stage", None)
-    for key, value in clean.items():
-        setattr(lead, key, value)
+    for collection in (fs.CONTACTS, fs.EMAILS, fs.MEETINGS, fs.FOLLOWUPS, fs.PIPELINE_EVENTS):
+        for row in _where(collection, "lead_id", lead_id):
+            if collection == fs.EMAILS:
+                for reply in _where(fs.REPLIES, "email_id", row["id"]):
+                    fs.collection(fs.REPLIES).document(reply["id"]).delete()
+            fs.collection(collection).document(row["id"]).delete()
 
-    if new_stage and new_stage != lead.pipeline_stage:
-        db.add(
-            PipelineEvent(
-                lead_id=lead.id,
-                from_stage=lead.pipeline_stage,
-                to_stage=new_stage,
-                reason="Updated manually",
-            )
-        )
-        lead.pipeline_stage = new_stage
-
-    await db.commit()
-    await db.refresh(lead)
-    return lead
+    fs.collection(fs.LEADS).document(lead_id).delete()
+    log.info("deleted lead %s", lead_id)
+    return True
 
 
-async def upsert_leads_from_pipeline(
-    db: AsyncSession, leads_list: list[dict[str, Any]], session_id: str
-) -> list[Lead]:
-    """Bulk write the pipeline's outreach_queue into the database.
+def upsert_leads_from_pipeline(
+    leads_list: list[dict[str, Any]], session_id: str
+) -> list[dict]:
+    """Bulk-write the pipeline's outreach queue.
 
-    Matches on company_name within the session: a lead the pipeline has seen
-    on an earlier node is updated in place rather than duplicated. Contacts
-    supplied under a "contacts" key are upserted by email.
+    Dedupes on company_name within the session, so calling this after each
+    graph node updates leads in place rather than duplicating them. A
+    "contacts" list on a lead dict is upserted by email.
     """
-    saved: list[Lead] = []
+    saved: list[dict] = []
+    seen_ids: set[str] = set()
 
     for raw in leads_list:
         name = (raw.get("company_name") or "").strip()
         if not name:
-            log.warning("skipping lead with no company_name: %s", raw)
+            log.warning("skipping lead with no company_name")
             continue
 
-        fields = _filter_lead_fields(raw)
+        fields = {k: v for k, v in raw.items() if k in LEAD_FIELDS}
+        fields["company_name"] = name
         fields["session_id"] = session_id
+        if "lead_score" in fields:
+            fields["lead_score"] = _clamp_score(fields["lead_score"])
 
-        lead = await get_lead_by_company(db, name, session_id)
-        if lead is None:
-            lead = Lead(**fields)
-            db.add(lead)
-            await db.flush()
-            db.add(
-                PipelineEvent(
-                    lead_id=lead.id,
-                    from_stage=None,
-                    to_stage=lead.pipeline_stage,
-                    reason="Lead discovered",
-                )
+        existing = get_lead_by_company(name, session_id)
+
+        if existing is None:
+            doc = lead_doc(fields, doc_id=raw.get("id"))
+            _set(fs.LEADS, doc)
+            _set(
+                fs.PIPELINE_EVENTS,
+                event_doc(doc["id"], None, doc["pipeline_stage"], "Lead discovered"),
             )
         else:
             new_stage = fields.pop("pipeline_stage", None)
-            for key, value in fields.items():
-                if value is not None:
-                    setattr(lead, key, value)
-            if new_stage and new_stage != lead.pipeline_stage:
-                db.add(
-                    PipelineEvent(
-                        lead_id=lead.id,
-                        from_stage=lead.pipeline_stage,
-                        to_stage=new_stage,
-                        reason="Advanced by pipeline",
-                    )
-                )
-                lead.pipeline_stage = new_stage
+            changes = {k: v for k, v in fields.items() if v is not None}
+            changes["updated_at"] = _now()
+            doc = _patch(fs.LEADS, existing["id"], changes) or existing
+            if new_stage and new_stage != doc.get("pipeline_stage"):
+                doc = update_lead_stage(doc["id"], new_stage, "Advanced by pipeline") or doc
 
         for contact in raw.get("contacts") or []:
-            await _upsert_contact(db, contact, lead.id)
+            create_contact(contact, doc["id"])
 
-        # Two dicts in one batch can refer to the same company (the pipeline
-        # emits a lead again as it advances) — return each lead once.
-        if lead not in saved:
-            saved.append(lead)
-
-    await db.commit()
-    for lead in saved:
-        await db.refresh(lead)
+        if doc["id"] not in seen_ids:
+            seen_ids.add(doc["id"])
+            saved.append(doc)
 
     log.info("upserted %s leads for session %s", len(saved), session_id)
     return saved
 
 
-async def count_leads_by_stage(
-    db: AsyncSession, session_id: str | None = None
-) -> dict[str, int]:
-    """{stage: count} — powers the pipeline status endpoint and Kanban badges."""
-    stmt = select(Lead.pipeline_stage, func.count(Lead.id)).group_by(Lead.pipeline_stage)
-    if session_id:
-        stmt = stmt.where(Lead.session_id == session_id)
-    result = await db.execute(stmt)
-    return {stage: count for stage, count in result.all()}
+def count_leads_by_stage(session_id: str | None = None) -> dict[str, int]:
+    """{stage: count} — powers the status endpoint and Kanban badges."""
+    counts: dict[str, int] = {}
+    for lead in get_all_leads(session_id):
+        stage = lead.get("pipeline_stage") or "Discovered"
+        counts[stage] = counts.get(stage, 0) + 1
+    return counts
 
 
 # ══════════════════════════════════════════════════════════════════════
 # CONTACTS
 # ══════════════════════════════════════════════════════════════════════
 
-async def _upsert_contact(
-    db: AsyncSession, contact_dict: dict[str, Any], lead_id: str
-) -> Contact:
+def create_contact(contact_dict: dict[str, Any], lead_id: str) -> dict:
     """Insert or update a contact, matched on email within the lead."""
-    fields = {k: v for k, v in contact_dict.items() if k in _CONTACT_FIELDS}
+    fields = {k: v for k, v in contact_dict.items() if k in CONTACT_FIELDS}
     email = fields.get("email")
 
-    existing = None
     if email:
-        result = await db.execute(
-            select(Contact).where(Contact.lead_id == lead_id, Contact.email == email)
-        )
-        existing = result.scalars().first()
+        for existing in _where(fs.CONTACTS, "lead_id", lead_id):
+            if (existing.get("email") or "").lower() == email.lower():
+                changes = {k: v for k, v in fields.items() if v is not None}
+                return _patch(fs.CONTACTS, existing["id"], changes) or existing
 
-    if existing:
-        for key, value in fields.items():
-            if value is not None:
-                setattr(existing, key, value)
-        return existing
-
-    contact = Contact(lead_id=lead_id, **fields)
-    db.add(contact)
-    await db.flush()
-    return contact
+    doc = contact_doc(fields, lead_id, doc_id=contact_dict.get("id"))
+    return _set(fs.CONTACTS, doc)
 
 
-async def create_contact(
-    db: AsyncSession, contact_dict: dict[str, Any], lead_id: str
-) -> Contact:
-    contact = await _upsert_contact(db, contact_dict, lead_id)
-    await db.commit()
-    await db.refresh(contact)
-    return contact
+def get_contact(contact_id: str) -> dict | None:
+    return _get(fs.CONTACTS, contact_id)
 
 
-async def get_contacts_for_lead(db: AsyncSession, lead_id: str) -> list[Contact]:
-    """Contacts for a lead, primary contact first."""
-    result = await db.execute(
-        select(Contact)
-        .where(Contact.lead_id == lead_id)
-        .order_by(Contact.is_primary.desc(), Contact.created_at.asc())
-    )
-    return list(result.scalars().all())
+def get_contacts_for_lead(lead_id: str) -> list[dict]:
+    """Contacts for a lead, primary first."""
+    rows = _where(fs.CONTACTS, "lead_id", lead_id)
+    rows = _sorted(rows, "created_at")
+    return sorted(rows, key=lambda c: not c.get("is_primary", False))
 
 
-async def get_primary_contact(db: AsyncSession, lead_id: str) -> Contact | None:
-    """The flagged primary contact, falling back to the first contact found."""
-    contacts = await get_contacts_for_lead(db, lead_id)
+def get_primary_contact(lead_id: str) -> dict | None:
+    """The flagged primary contact, falling back to the first one found."""
+    contacts = get_contacts_for_lead(lead_id)
     return contacts[0] if contacts else None
 
 
-async def get_contact_by_email(db: AsyncSession, email: str) -> Contact | None:
+def get_contact_by_email(email: str) -> dict | None:
     """Used by the inbound reply webhook to match a sender to a contact."""
-    result = await db.execute(
-        select(Contact).where(func.lower(Contact.email) == email.lower())
-    )
-    return result.scalars().first()
+    if not email:
+        return None
+    target = email.strip().lower()
+    for row in _all(fs.CONTACTS):
+        if (row.get("email") or "").strip().lower() == target:
+            return row
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════
 # EMAILS
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_email(
-    db: AsyncSession,
+def create_email(
     lead_id: str,
-    contact_id: str | None,
+    contact_id: Optional[str],
     subject: str,
     body: str,
     status: str = "draft",
-    sent_at: datetime | None = None,
-) -> Email:
-    email = Email(
-        lead_id=lead_id,
-        contact_id=contact_id,
-        subject=subject,
-        body=body,
-        status=status,
-        sent_at=sent_at or (_now() if status == "sent" else None),
-    )
-    db.add(email)
-    await db.commit()
-    await db.refresh(email)
-    log.info("email %s for lead %s (status=%s)", email.id, lead_id, status)
-    return email
+    sent_at: Optional[datetime] = None,
+) -> dict:
+    doc = email_doc(lead_id, contact_id, subject, body, status, sent_at)
+    _set(fs.EMAILS, doc)
+    log.info("email %s for lead %s (status=%s)", doc["id"], lead_id, status)
+    return doc
 
 
-async def get_email(db: AsyncSession, email_id: str) -> Email | None:
-    return await db.get(Email, email_id)
+def get_email(email_id: str) -> dict | None:
+    return _get(fs.EMAILS, email_id)
 
 
-async def get_all_emails(db: AsyncSession) -> list[Email]:
-    result = await db.execute(select(Email).order_by(Email.created_at.desc()))
-    return list(result.scalars().unique().all())
+def get_all_emails() -> list[dict]:
+    return _sorted(_all(fs.EMAILS), "created_at", reverse=True)
 
 
-async def get_emails_for_lead(db: AsyncSession, lead_id: str) -> list[Email]:
-    result = await db.execute(
-        select(Email).where(Email.lead_id == lead_id).order_by(Email.created_at.asc())
-    )
-    return list(result.scalars().unique().all())
+def get_emails_for_lead(lead_id: str) -> list[dict]:
+    return _sorted(_where(fs.EMAILS, "lead_id", lead_id), "created_at")
 
 
-async def get_emails_needing_followup(
-    db: AsyncSession, days: int = 3
-) -> list[Email]:
-    """Sent more than `days` ago, never replied to, no follow-up sent yet."""
+def update_email_status(email_id: str, status: str) -> dict | None:
+    updates: dict[str, Any] = {"status": status}
+    current = get_email(email_id)
+    if current is None:
+        return None
+    if status == "sent" and current.get("sent_at") is None:
+        updates["sent_at"] = _now()
+    return _patch(fs.EMAILS, email_id, updates)
+
+
+def get_emails_needing_followup(days: int = 3) -> list[dict]:
+    """Sent more than `days` ago, never replied to, no follow-up queued.
+
+    Done in Python rather than as a compound query: Firestore has no NOT-IN
+    across collections, and the "no reply exists" test is a join.
+    """
     cutoff = _now() - timedelta(days=days)
 
-    replied = select(Reply.email_id)
-    followed_up = select(FollowUp.original_email_id).where(
-        FollowUp.status.in_(["sent", "pending"])
-    )
+    replied_to = {r.get("email_id") for r in _all(fs.REPLIES)}
+    followed_up = {
+        f.get("original_email_id")
+        for f in _all(fs.FOLLOWUPS)
+        if f.get("status") in ("sent", "pending")
+    }
 
-    result = await db.execute(
-        select(Email)
-        .where(
-            Email.status == "sent",
-            Email.sent_at.is_not(None),
-            Email.sent_at <= cutoff,
-            Email.id.not_in(replied),
-            Email.id.not_in(followed_up),
-        )
-        .order_by(Email.sent_at.asc())
-    )
-    emails = list(result.scalars().unique().all())
-    if emails:
-        log.info("%s emails are due a follow-up", len(emails))
-    return emails
+    due = []
+    for email in _all(fs.EMAILS):
+        sent_at = _as_dt(email.get("sent_at"))
+        if (
+            email.get("status") == "sent"
+            and sent_at is not None
+            and sent_at <= cutoff
+            and email["id"] not in replied_to
+            and email["id"] not in followed_up
+        ):
+            due.append(email)
+
+    if due:
+        log.info("%s emails are due a follow-up", len(due))
+    return _sorted(due, "sent_at")
 
 
-async def find_email_by_subject(
-    db: AsyncSession, subject: str, contact_id: str | None = None
-) -> Email | None:
-    """Match an inbound 'Re: ...' subject back to the email that was sent.
+def find_email_by_subject(
+    subject: str, contact_id: str | None = None
+) -> dict | None:
+    """Match an inbound 'Re: ...' back to the email that was sent.
 
-    The webhook strips the Re:/Fwd: prefix before calling this.
+    The caller strips the Re:/Fwd: prefix first.
     """
-    stmt = select(Email).where(
-        func.lower(Email.subject) == subject.strip().lower(),
-        Email.status.in_(["sent", "replied"]),
-    )
-    if contact_id:
-        stmt = stmt.where(Email.contact_id == contact_id)
-    result = await db.execute(stmt.order_by(Email.sent_at.desc()))
-    return result.scalars().first()
-
-
-async def update_email_status(
-    db: AsyncSession, email_id: str, status: str
-) -> Email | None:
-    email = await db.get(Email, email_id)
-    if email is None:
-        return None
-    email.status = status
-    if status == "sent" and email.sent_at is None:
-        email.sent_at = _now()
-    await db.commit()
-    await db.refresh(email)
-    return email
+    target = (subject or "").strip().lower()
+    candidates = [
+        e
+        for e in _all(fs.EMAILS)
+        if (e.get("subject") or "").strip().lower() == target
+        and e.get("status") in ("sent", "replied")
+        and (contact_id is None or e.get("contact_id") == contact_id)
+    ]
+    candidates = _sorted(candidates, "sent_at", reverse=True)
+    return candidates[0] if candidates else None
 
 
 # ══════════════════════════════════════════════════════════════════════
 # REPLIES
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_reply(
-    db: AsyncSession,
+def create_reply(
     email_id: str,
     raw_body: str,
+    received_at: Optional[datetime] = None,
     classification: str | None = None,
     summary: str | None = None,
     next_action: str | None = None,
-    received_at: datetime | None = None,
-) -> Reply:
-    """Record an inbound reply and flip the original email to 'replied'."""
-    reply = Reply(
-        email_id=email_id,
-        raw_body=raw_body,
-        classification=classification,
-        summary=summary,
-        next_action=next_action,
-        received_at=received_at or _now(),
+) -> dict:
+    """Record an inbound reply and flip the parent email to 'replied'.
+
+    Argument order matches comms/_shim.py — `received_at` third — so the
+    comms layer's positional calls keep working.
+    """
+    doc = reply_doc(
+        email_id, raw_body, classification, summary, next_action, received_at
     )
-    db.add(reply)
-
-    email = await db.get(Email, email_id)
-    if email is not None:
-        email.status = "replied"
-
-    await db.commit()
-    await db.refresh(reply)
+    _set(fs.REPLIES, doc)
+    _patch(fs.EMAILS, email_id, {"status": "replied"})
     log.info("reply on email %s classified as %s", email_id, classification)
-    return reply
+    return doc
 
 
-async def get_all_replies(db: AsyncSession) -> list[Reply]:
-    result = await db.execute(select(Reply).order_by(Reply.received_at.desc()))
-    return list(result.scalars().unique().all())
+def update_reply_classification(
+    reply_id: str,
+    classification: str,
+    summary: str | None = None,
+    next_action: str | None = None,
+) -> dict | None:
+    updates: dict[str, Any] = {"classification": classification}
+    if summary is not None:
+        updates["summary"] = summary
+    if next_action is not None:
+        updates["next_action"] = next_action
+    return _patch(fs.REPLIES, reply_id, updates)
 
 
-async def get_replies_for_lead(db: AsyncSession, lead_id: str) -> list[Reply]:
-    result = await db.execute(
-        select(Reply)
-        .join(Email, Reply.email_id == Email.id)
-        .where(Email.lead_id == lead_id)
-        .order_by(Reply.received_at.desc())
-    )
-    return list(result.scalars().unique().all())
+def get_all_replies() -> list[dict]:
+    return _sorted(_all(fs.REPLIES), "received_at", reverse=True)
+
+
+def get_replies_for_lead(lead_id: str) -> list[dict]:
+    email_ids = {e["id"] for e in _where(fs.EMAILS, "lead_id", lead_id)}
+    rows = [r for r in _all(fs.REPLIES) if r.get("email_id") in email_ids]
+    return _sorted(rows, "received_at", reverse=True)
 
 
 # ══════════════════════════════════════════════════════════════════════
 # MEETINGS
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_meeting(
-    db: AsyncSession,
+def create_meeting(
     lead_id: str,
-    contact_id: str | None,
-    meeting_link: str | None,
-    scheduled_at: datetime | None = None,
+    contact_id: Optional[str],
+    meeting_link: Optional[str],
     status: str = "link_sent",
-    briefing: dict | None = None,
-) -> Meeting:
-    meeting = Meeting(
-        lead_id=lead_id,
-        contact_id=contact_id,
-        meeting_link=meeting_link,
-        scheduled_at=scheduled_at,
-        status=status,
-        briefing=briefing,
-    )
-    db.add(meeting)
-    await db.commit()
-    await db.refresh(meeting)
-    log.info("meeting %s booked for lead %s", meeting.id, lead_id)
-    return meeting
+    scheduled_at: Optional[datetime] = None,
+    briefing: Optional[dict] = None,
+) -> dict:
+    doc = meeting_doc(lead_id, contact_id, meeting_link, scheduled_at, briefing, status)
+    _set(fs.MEETINGS, doc)
+    log.info("meeting %s booked for lead %s", doc["id"], lead_id)
+    return doc
 
 
-async def get_meeting(db: AsyncSession, meeting_id: str) -> Meeting | None:
-    return await db.get(Meeting, meeting_id)
+def get_meeting(meeting_id: str) -> dict | None:
+    return _get(fs.MEETINGS, meeting_id)
 
 
-async def get_all_meetings(db: AsyncSession) -> list[Meeting]:
-    """Meetings ordered by when they happen, soonest first."""
-    result = await db.execute(
-        select(Meeting).order_by(
-            Meeting.scheduled_at.is_(None), Meeting.scheduled_at.asc()
-        )
-    )
-    return list(result.scalars().unique().all())
+def get_all_meetings() -> list[dict]:
+    """Meetings soonest first; unscheduled ones sink to the bottom."""
+    rows = _all(fs.MEETINGS)
+    far_future = datetime.max.replace(tzinfo=timezone.utc)
+    return sorted(rows, key=lambda m: _as_dt(m.get("scheduled_at")) or far_future)
 
 
-async def get_meetings_for_lead(db: AsyncSession, lead_id: str) -> list[Meeting]:
-    result = await db.execute(
-        select(Meeting)
-        .where(Meeting.lead_id == lead_id)
-        .order_by(Meeting.scheduled_at.asc())
-    )
-    return list(result.scalars().unique().all())
+def get_meetings_for_lead(lead_id: str) -> list[dict]:
+    return _sorted(_where(fs.MEETINGS, "lead_id", lead_id), "scheduled_at")
 
 
-async def get_upcoming_meetings_needing_reminder(
-    db: AsyncSession, within_minutes: int = 35
-) -> list[Meeting]:
-    """Meetings starting soon that the admin has not been WhatsApped about."""
+def get_meetings_needing_reminder(window_minutes: int = 35) -> list[dict]:
+    """Meetings starting soon the admin has not been alerted about."""
     now = _now()
-    horizon = now + timedelta(minutes=within_minutes)
-    result = await db.execute(
-        select(Meeting)
-        .where(
-            Meeting.admin_notified.is_(False),
-            Meeting.scheduled_at.is_not(None),
-            Meeting.scheduled_at > now,
-            Meeting.scheduled_at <= horizon,
-            Meeting.status.in_(["link_sent", "confirmed"]),
-        )
-        .order_by(Meeting.scheduled_at.asc())
-    )
-    return list(result.scalars().unique().all())
+    window_end = now + timedelta(minutes=window_minutes)
+
+    due = []
+    for meeting in _all(fs.MEETINGS):
+        scheduled = _as_dt(meeting.get("scheduled_at"))
+        if (
+            scheduled is not None
+            and not meeting.get("admin_notified")
+            and now <= scheduled <= window_end
+            and meeting.get("status") in ("link_sent", "confirmed")
+        ):
+            due.append(meeting)
+    return _sorted(due, "scheduled_at")
 
 
-async def update_meeting_admin_notified(
-    db: AsyncSession, meeting_id: str
-) -> Meeting | None:
-    meeting = await db.get(Meeting, meeting_id)
-    if meeting is None:
-        return None
-    meeting.admin_notified = True
-    await db.commit()
-    await db.refresh(meeting)
-    return meeting
+def mark_meeting_admin_notified(meeting_id: str) -> dict | None:
+    return _patch(fs.MEETINGS, meeting_id, {"admin_notified": True})
 
 
-async def update_meeting_briefing(
-    db: AsyncSession, meeting_id: str, briefing_dict: dict
-) -> Meeting | None:
-    meeting = await db.get(Meeting, meeting_id)
-    if meeting is None:
-        return None
-    meeting.briefing = briefing_dict
-    await db.commit()
-    await db.refresh(meeting)
-    return meeting
+def update_meeting_briefing(meeting_id: str, briefing: dict) -> dict | None:
+    return _patch(fs.MEETINGS, meeting_id, {"briefing": briefing})
 
 
-async def update_meeting_status(
-    db: AsyncSession, meeting_id: str, status: str
-) -> Meeting | None:
-    meeting = await db.get(Meeting, meeting_id)
-    if meeting is None:
-        return None
-    meeting.status = status
-    await db.commit()
-    await db.refresh(meeting)
-    return meeting
+def update_meeting_status(meeting_id: str, status: str) -> dict | None:
+    return _patch(fs.MEETINGS, meeting_id, {"status": status})
+
+
+# Aliases kept so older call sites in my routes keep working.
+get_upcoming_meetings_needing_reminder = get_meetings_needing_reminder
+update_meeting_admin_notified = mark_meeting_admin_notified
 
 
 # ══════════════════════════════════════════════════════════════════════
 # FOLLOW-UPS
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_followup(
-    db: AsyncSession,
+def create_followup(
     lead_id: str,
-    original_email_id: str,
-    scheduled_for: datetime | None = None,
+    email_id: str,
+    scheduled_for: Optional[datetime] = None,
     status: str = "pending",
-) -> FollowUp:
-    followup = FollowUp(
-        lead_id=lead_id,
-        original_email_id=original_email_id,
-        scheduled_for=scheduled_for,
-        status=status,
+) -> dict:
+    """`email_id` is the ORIGINAL email being followed up on."""
+    doc = followup_doc(lead_id, email_id, scheduled_for, status)
+    return _set(fs.FOLLOWUPS, doc)
+
+
+def get_pending_followups() -> list[dict]:
+    rows = [f for f in _all(fs.FOLLOWUPS) if f.get("status") == "pending"]
+    return _sorted(rows, "scheduled_for")
+
+
+def update_followup_sent(followup_id: str, followup_email_id: str) -> dict | None:
+    return _patch(
+        fs.FOLLOWUPS,
+        followup_id,
+        {"followup_email_id": followup_email_id, "status": "sent"},
     )
-    db.add(followup)
-    await db.commit()
-    await db.refresh(followup)
-    return followup
-
-
-async def get_pending_followups(db: AsyncSession) -> list[FollowUp]:
-    result = await db.execute(
-        select(FollowUp)
-        .where(FollowUp.status == "pending")
-        .order_by(FollowUp.scheduled_for.asc())
-    )
-    return list(result.scalars().unique().all())
-
-
-async def update_followup_sent(
-    db: AsyncSession, followup_id: str, followup_email_id: str
-) -> FollowUp | None:
-    followup = await db.get(FollowUp, followup_id)
-    if followup is None:
-        return None
-    followup.followup_email_id = followup_email_id
-    followup.status = "sent"
-    await db.commit()
-    await db.refresh(followup)
-    return followup
 
 
 # ══════════════════════════════════════════════════════════════════════
 # PIPELINE EVENTS
 # ══════════════════════════════════════════════════════════════════════
 
-async def create_event(
-    db: AsyncSession,
+def create_event(
     lead_id: str,
     from_stage: str | None,
     to_stage: str | None,
     reason: str | None = None,
-) -> PipelineEvent:
-    event = PipelineEvent(
-        lead_id=lead_id, from_stage=from_stage, to_stage=to_stage, reason=reason
-    )
-    db.add(event)
-    await db.commit()
-    await db.refresh(event)
-    return event
+) -> dict:
+    return _set(fs.PIPELINE_EVENTS, event_doc(lead_id, from_stage, to_stage, reason))
 
 
-async def get_events_for_lead(db: AsyncSession, lead_id: str) -> list[PipelineEvent]:
+def get_events_for_lead(lead_id: str) -> list[dict]:
     """Timeline for a lead, oldest first."""
-    result = await db.execute(
-        select(PipelineEvent)
-        .where(PipelineEvent.lead_id == lead_id)
-        .order_by(PipelineEvent.created_at.asc())
-    )
-    return list(result.scalars().all())
+    return _sorted(_where(fs.PIPELINE_EVENTS, "lead_id", lead_id), "created_at")
 
 
 # ══════════════════════════════════════════════════════════════════════
 # MAINTENANCE
 # ══════════════════════════════════════════════════════════════════════
 
-async def clear_all(db: AsyncSession) -> None:
-    """Wipe every table. Dev only — used by load_seeds.py before seeding."""
-    for model in (PipelineEvent, FollowUp, Meeting, Reply, Email, Contact, Lead):
-        await db.execute(model.__table__.delete())
-    await db.commit()
-    log.warning("cleared all tables")
+def clear_all() -> None:
+    """Wipe every collection. Dev only — used by load_seeds.py."""
+    client = fs.get_client()
+    for collection in fs.ALL_COLLECTIONS:
+        for doc in client.collection(collection).stream():
+            doc.reference.delete()
+    log.warning("cleared all collections")
+
+
+__all__ = [name for name in dir() if not name.startswith("_")]
