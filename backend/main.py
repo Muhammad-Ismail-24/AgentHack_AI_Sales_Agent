@@ -33,6 +33,7 @@ ROUTERS = [
     ("api.routes.webhook", "router", "webhook", "/webhook"),
     # Registered last: only fills gaps the routers above do not cover.
     ("api.routes.dashboard", "router", "dashboard", None),
+    ("api.routes.admin", "router", "admin", None),
 ]
 
 
@@ -102,7 +103,7 @@ app = FastAPI(
         "Ingests a company profile, finds and researches matching leads, scores "
         "them, writes and sends outreach, classifies replies, and books meetings."
     ),
-    version="1.0.0",
+    version="1.1.0",
     lifespan=lifespan,
 )
 
