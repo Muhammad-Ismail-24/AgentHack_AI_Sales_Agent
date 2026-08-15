@@ -61,7 +61,9 @@ def build_graph():
     graph = StateGraph(PipelineState)
 
     graph.add_node("rag", rag_agent.run)
-    graph.add_node("icp", icp_agent.run)
+    # Named "icp_agent", not "icp" — PipelineState already has an `icp` field,
+    # and LangGraph rejects a node name that collides with a state key.
+    graph.add_node("icp_agent", icp_agent.run)
     graph.add_node("discovery", discovery_agent.run)
     graph.add_node("filter", filter_agent.run)
     graph.add_node("research", research_agent.run)
@@ -71,8 +73,8 @@ def build_graph():
     graph.add_node("email_writer", email_writer_agent.run)
 
     graph.add_edge(START, "rag")
-    graph.add_edge("rag", "icp")
-    graph.add_edge("icp", "discovery")
+    graph.add_edge("rag", "icp_agent")
+    graph.add_edge("icp_agent", "discovery")
     graph.add_edge("discovery", "filter")
     graph.add_edge("filter", "research")
     graph.add_edge("research", "qualification")
