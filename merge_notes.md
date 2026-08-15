@@ -153,8 +153,14 @@ Frontend `npm run build` passes (tsc + vite, 140 modules).
 
 - **Firebase service-account key** (see the top of this file) — the only
   thing standing between this repo and a working demo.
-- **WhatsApp** is off by request. `whatsapp_notifier.py` logs instead of
-  sending while the Twilio keys are blank.
+- **WhatsApp** — no longer Twilio. `whatsapp_notifier.py` now speaks Green API
+  first (plain REST — `{GREEN_API_URL}/waInstance{id}/sendMessage/{token}`),
+  Twilio second, mock last. Also gained a company-facing send (extra credit):
+  when a contact has a `phone` field, a meeting confirmation goes straight to
+  their WhatsApp too — see `docs/env_variables.md` → WhatsApp and
+  `docs/database_schema.md` → contacts. `GREEN_API_ID_INSTANCE` /
+  `GREEN_API_TOKEN_INSTANCE` still need to go in your local `.env` — never
+  commit them.
 - **Playwright browsers** are not downloaded locally — run
   `playwright install chromium` before a live pipeline run. The Docker image
   already does this.
