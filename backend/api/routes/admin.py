@@ -11,6 +11,10 @@ POST /admin/reseed — wipe every collection and reload data/seeds/*.json.
 lives on a host with no shell. It reuses load_seeds.py rather than
 reimplementing the loading rules, so there is one source of truth for what
 the demo data is.
+
+POST /admin/wipe — wipe every collection and reload nothing. **Destructive.**
+For clearing seed/demo/test data out before a genuine pipeline run, when you
+want an empty database rather than the reseeded demo state.
 """
 
 import asyncio
@@ -118,3 +122,26 @@ async def reseed() -> ReseedResponse:
     loaded, remaining, session_id = await asyncio.to_thread(_reseed)
     log.warning("reseeded demo data: %s", loaded)
     return ReseedResponse(loaded=loaded, remaining=remaining, session_id=session_id)
+
+
+class WipeResponse(BaseModel):
+    wiped: bool = True
+    remaining: dict[str, int]
+
+
+@router.post("/wipe", response_model=WipeResponse)
+async def wipe() -> WipeResponse:
+    """Wipe every collection. Nothing is reloaded afterward.
+
+    Destructive: removes seed data, demo data, and the output of every past
+    pipeline run alike. Use this instead of /reseed when you want a genuinely
+    empty database for a real pipeline run, not the canned demo state.
+    """
+    await asyncio.to_thread(crud.clear_all)
+    client = fs.get_client()
+    remaining = {
+        collection: sum(1 for _ in client.collection(collection).stream())
+        for collection in fs.ALL_COLLECTIONS
+    }
+    log.warning("wiped all collections, nothing reloaded")
+    return WipeResponse(remaining=remaining)
