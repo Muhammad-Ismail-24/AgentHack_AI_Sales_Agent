@@ -1,0 +1,125 @@
+"""LangGraph master graph — wires all 9 agent nodes into the sales pipeline.
+
+Flow: rag -> icp -> discovery -> filter -> research -> qualification ->
+      service_match -> decision_makers -> email_writer
+"""
+
+from typing import TypedDict
+
+from langgraph.graph import END, START, StateGraph
+
+from agents import (
+    decision_maker_agent,
+    discovery_agent,
+    email_writer_agent,
+    filter_agent,
+    icp_agent,
+    qualification_agent,
+    rag_agent,
+    research_agent,
+    service_matching_agent,
+)
+from utils.logger import logger
+
+
+class PipelineState(TypedDict, total=False):
+    """Shared state threaded through every node in the pipeline.
+
+    Set by:
+      session_id           - caller (run_pipeline)
+      raw_input             - caller (run_pipeline)
+      input_type             - caller (run_pipeline)
+      icp_raw                - caller (run_pipeline)
+      company_collection    - rag_agent
+      company_name           - rag_agent
+      icp                     - icp_agent
+      raw_leads               - discovery_agent
+      filtered_leads          - filter_agent
+      researched_leads        - research_agent
+      qualified_leads          - qualification_agent (created),
+                                  service_matching_agent, decision_maker_agent,
+                                  email_writer_agent (all update in place)
+      outreach_queue            - email_writer_agent
+    """
+
+    session_id: str
+    raw_input: str
+    input_type: str
+    icp_raw: dict
+    company_collection: str
+    company_name: str
+    icp: dict
+    raw_leads: list[dict]
+    filtered_leads: list[dict]
+    researched_leads: list[dict]
+    qualified_leads: list[dict]
+    outreach_queue: list[dict]
+
+
+def build_graph():
+    """Build and compile the LangGraph StateGraph for the sales pipeline."""
+    graph = StateGraph(PipelineState)
+
+    graph.add_node("rag", rag_agent.run)
+    graph.add_node("icp", icp_agent.run)
+    graph.add_node("discovery", discovery_agent.run)
+    graph.add_node("filter", filter_agent.run)
+    graph.add_node("research", research_agent.run)
+    graph.add_node("qualification", qualification_agent.run)
+    graph.add_node("service_match", service_matching_agent.run)
+    graph.add_node("decision_makers", decision_maker_agent.run)
+    graph.add_node("email_writer", email_writer_agent.run)
+
+    graph.add_edge(START, "rag")
+    graph.add_edge("rag", "icp")
+    graph.add_edge("icp", "discovery")
+    graph.add_edge("discovery", "filter")
+    graph.add_edge("filter", "research")
+    graph.add_edge("research", "qualification")
+    graph.add_edge("qualification", "service_match")
+    graph.add_edge("service_match", "decision_makers")
+    graph.add_edge("decision_makers", "email_writer")
+    graph.add_edge("email_writer", END)
+
+    return graph.compile()
+
+
+_compiled_graph = None
+
+
+def get_compiled_graph():
+    global _compiled_graph
+    if _compiled_graph is None:
+        _compiled_graph = build_graph()
+    return _compiled_graph
+
+
+async def run_pipeline(
+    session_id: str,
+    raw_input: str,
+    input_type: str,
+    icp_raw: dict,
+) -> dict:
+    """Run the full sales-intelligence pipeline end-to-end.
+
+    Builds the initial state, invokes the compiled graph, and returns the
+    final state (including outreach_queue, ready for comms/ to consume).
+    """
+    initial_state: PipelineState = {
+        "session_id": session_id,
+        "raw_input": raw_input,
+        "input_type": input_type,
+        "icp_raw": icp_raw,
+        "icp": {},
+        "raw_leads": [],
+        "filtered_leads": [],
+        "researched_leads": [],
+        "qualified_leads": [],
+        "outreach_queue": [],
+    }
+
+    logger.info(f"orchestrator: starting pipeline run for session_id='{session_id}'")
+    compiled = get_compiled_graph()
+    final_state = await compiled.ainvoke(initial_state)
+    logger.info(f"orchestrator: pipeline run complete for session_id='{session_id}'")
+    return final_state
