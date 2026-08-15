@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ORMModel(BaseModel):
-    """Base for anything read straight out of a Firestore document."""
+    """Base for anything read straight off a Firestore document / attribute-style object."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -98,7 +98,7 @@ class EmailResponse(ORMModel):
     body: str | None = None
     status: str
     sent_at: datetime | None = None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class ReplyResponse(ORMModel):
@@ -108,7 +108,7 @@ class ReplyResponse(ORMModel):
     classification: str | None = None
     summary: str | None = None
     next_action: str | None = None
-    received_at: datetime
+    received_at: datetime | None = None
 
 
 class MeetingResponse(ORMModel):
@@ -120,7 +120,7 @@ class MeetingResponse(ORMModel):
     briefing: dict[str, Any] | None = None
     admin_notified: bool = False
     status: str
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class FollowUpResponse(ORMModel):
@@ -130,7 +130,7 @@ class FollowUpResponse(ORMModel):
     followup_email_id: str | None = None
     scheduled_for: datetime | None = None
     status: str
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class PipelineEventResponse(ORMModel):
@@ -139,7 +139,7 @@ class PipelineEventResponse(ORMModel):
     from_stage: str | None = None
     to_stage: str | None = None
     reason: str | None = None
-    created_at: datetime
+    created_at: datetime | None = None
 
 
 class LeadResponse(ORMModel):
@@ -158,8 +158,8 @@ class LeadResponse(ORMModel):
     research_summary: str | None = None
     apollo_data: dict[str, Any] | None = None
     session_id: str | None = None
-    created_at: datetime
-    updated_at: datetime
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
     contacts: list[ContactResponse] = Field(default_factory=list)
 
 
