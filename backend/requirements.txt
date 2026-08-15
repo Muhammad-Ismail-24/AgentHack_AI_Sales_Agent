@@ -26,6 +26,10 @@ langgraph==0.2.60
 qdrant-client==1.12.1
 langchain-qdrant==0.2.0
 pymupdf==1.25.1
+# Local embedding fallback for rag/embedder.py — used when the configured
+# Gemini embedding model is retired/unavailable, or no embedding key is set.
+# ONNX-based (no PyTorch), light enough for a small Render instance.
+fastembed==0.8.0
 
 # Shared transitive pins. qdrant-client pulls the newest grpcio-tools, which
 # drags in protobuf 7 and silently breaks the Gemini SDK at runtime. These two
