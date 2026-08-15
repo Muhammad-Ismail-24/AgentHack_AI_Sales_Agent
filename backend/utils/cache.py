@@ -3,6 +3,10 @@ expensive external calls (scrapes, search results) so reruns are cheap.
 
 Redis is optional: if it is unreachable the helpers degrade to an in-process
 dict so a demo still runs on a laptop with no Redis container.
+
+Two naming styles are exported on purpose — `cache_get`/`cache_set` (used by
+the memory layer) and `get_cache`/`set_cache` (used by the agent tools). They
+are the same functions; keeping both means neither branch needed rewriting.
 """
 
 import json
@@ -61,16 +65,24 @@ def cache_set(key: str, value: Any, ttl: int | None = None) -> None:
     if client is None:
         _fallback[key] = payload
         return
-    if ttl:
-        client.setex(key, ttl, payload)
-    else:
-        client.set(key, payload)
+    try:
+        if ttl:
+            client.setex(key, ttl, payload)
+        else:
+            client.set(key, payload)
+    except Exception as exc:  # noqa: BLE001 - a cache write must never raise
+        log.warning("redis SET failed for %r: %s", key, exc)
 
 
 def cache_get(key: str) -> Any | None:
     """Read a value back, or None if the key is missing or unparseable."""
     client = get_client()
-    raw = _fallback.get(key) if client is None else client.get(key)
+    try:
+        raw = _fallback.get(key) if client is None else client.get(key)
+    except Exception as exc:  # noqa: BLE001 - a cache read must never raise
+        log.warning("redis GET failed for %r: %s", key, exc)
+        return None
+
     if raw is None:
         return None
     try:
@@ -88,11 +100,29 @@ def cache_delete(*keys: str) -> None:
             _fallback.pop(key, None)
         return
     if keys:
-        client.delete(*keys)
+        try:
+            client.delete(*keys)
+        except Exception as exc:  # noqa: BLE001
+            log.warning("redis DEL failed: %s", exc)
 
 
 def cache_exists(key: str) -> bool:
     client = get_client()
     if client is None:
         return key in _fallback
-    return bool(client.exists(key))
+    try:
+        return bool(client.exists(key))
+    except Exception:  # noqa: BLE001
+        return False
+
+
+# ── Aliases used by the agent tools ──────────────────────────────────
+
+def get_cache(key: str) -> Any | None:
+    """Alias of cache_get, for the tools layer."""
+    return cache_get(key)
+
+
+def set_cache(key: str, value: Any, ttl: int = 86_400) -> None:
+    """Alias of cache_set with a 24h default TTL, for the tools layer."""
+    cache_set(key, value, ttl=ttl)

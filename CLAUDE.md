@@ -12,7 +12,7 @@ classifies replies, schedules meetings, and follows up automatically.
 - RAG: LangChain + Qdrant
 - DB: PostgreSQL (Supabase)
 - Cache/memory: Redis
-- LLM: claude-sonnet-4-6 (Anthropic SDK)
+- LLM: gemini-3.5-flash-lite (Google Generative AI SDK, via langchain-google-genai)
 
 ## Key commands
 # Backend
