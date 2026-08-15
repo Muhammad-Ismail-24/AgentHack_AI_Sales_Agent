@@ -31,18 +31,22 @@ _DIRECTORY_DOMAINS = frozenset(
 )
 
 # Titles that describe a roundup of companies rather than naming one.
+#
+# Deliberately narrow. An earlier, looser version matched "leading <x> company"
+# and "<x> companies in <place> -", which is how plenty of real companies title
+# their own homepage ("Aramex — Leading Logistics Company in UAE"), and it
+# dropped every result in a live run. Patterns here need a countable list
+# ("top 10"), an explicit list/directory word, or jobs-board phrasing — things
+# a single company does not say about itself.
 _LISTICLE_PATTERNS = (
-    r"\btop\s+\d+\b",
-    r"\bbest\s+\d+\b",
+    r"\b(?:top|best|leading)\s+\d+\b",
     r"\btop\s+\d*\s*(?:best|leading|largest|biggest)\b",
     r"\blist\s+of\b",
-    r"\b(?:largest|biggest|leading)\s+\w+\s+compan(?:y|ies)\b",
     r"\bcompanies\s+to\s+work\s+for\b",
     r"\bbest\s+places?\s+to\s+work\b",
     r"\b(?:major|top|largest|biggest|key)\s+employers\b",
-    r"\b(?:companies|firms|providers|suppliers)\s+in\s+\w+\s*[:\-–]",
-    r"\bdirectory\b",
-    r"\branking?s?\b",
+    r"\bcompan(?:y|ies)\s+directory\b",
+    r"\bdirectory\s+of\b",
     r"\bmarket\s+(?:report|size|share|research)\b",
 )
 
@@ -118,7 +122,7 @@ async def run(state: dict) -> dict:
 
         seen_urls: set[str] = set()
         raw_leads: list[dict] = []
-        dropped_directory = 0
+        dropped: list[dict] = []
 
         import asyncio
         for q in queries:
@@ -137,28 +141,39 @@ async def run(state: dict) -> dict:
                     continue
                 seen_urls.add(url)
 
-                title = (r.get("title") or "").strip()
-                if _is_directory_result(title, url):
-                    dropped_directory += 1
+                lead = {
+                    "company_name": (r.get("title") or "").strip() or url,
+                    "url": url,
+                    "snippet": r.get("snippet", ""),
+                }
+                if _is_directory_result(lead["company_name"], url):
+                    dropped.append(lead)
                     continue
+                raw_leads.append(lead)
 
-                raw_leads.append(
-                    {
-                        "company_name": title or url,
-                        "url": url,
-                        "snippet": r.get("snippet", ""),
-                    }
-                )
+        # The heuristic above is a cheap pre-filter, not the gate — filter_agent
+        # is. If it would leave nothing, it is more likely wrong than the whole
+        # result set is worthless, so hand the results on and let the LLM judge.
+        # Returning zero leads ends the run; a bad guess here must not do that.
+        if not raw_leads and dropped:
+            logger.warning(
+                "discovery_agent: the directory heuristic matched all %d results — "
+                "ignoring it for this run and passing them to filter_agent",
+                len(dropped),
+            )
+            raw_leads = dropped
+            dropped = []
 
         state["raw_leads"] = raw_leads
         logger.info(
             f"discovery_agent: found {len(raw_leads)} deduplicated raw leads "
-            f"(dropped {dropped_directory} directory/listicle results)"
+            f"(dropped {len(dropped)} directory/listicle results)"
         )
-        if not raw_leads and dropped_directory:
+        if not raw_leads:
             logger.warning(
-                "discovery_agent: every result was a directory or roundup page — "
-                "the ICP keywords may be too broad to surface individual companies"
+                "discovery_agent: search returned nothing for queries %s — "
+                "the ICP keywords may be too narrow, or the search key is missing",
+                queries,
             )
         return state
     except Exception as e:
