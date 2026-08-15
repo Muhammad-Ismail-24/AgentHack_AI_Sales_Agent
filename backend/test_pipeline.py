@@ -3,38 +3,31 @@
 Run from the repo root:
     python -m backend.test_pipeline
 
-Loads the seed company text, runs a hardcoded ICP through
-orchestrator.run_pipeline(), and prints a summary of what came out.
+Runs a fixed company description and ICP through orchestrator.run_pipeline()
+and prints a summary of what came out.
+
+The company text and ICP below are inputs to this dev harness, not app data:
+nothing here is ever written to Firestore as a lead. The pipeline discovers,
+researches, and scores real companies from them.
 """
 
 import asyncio
-from pathlib import Path
 
 from agents.orchestrator import run_pipeline
-from utils.logger import logger
 
-ROOT_DIR = Path(__file__).resolve().parent.parent
-SEED_FILE = ROOT_DIR / "data" / "seeds" / "company_sample.txt"
-
-HARDCODED_ICP = {
+TEST_ICP = {
     "location": "UAE",
     "industry": "logistics",
     "size": "50-500",
     "focus": "WhatsApp automation",
 }
 
-
-def load_seed_company_text() -> str:
-    if SEED_FILE.exists():
-        return SEED_FILE.read_text(encoding="utf-8")
-
-    logger.warning(f"{SEED_FILE} not found — using a mocked company description")
-    return (
-        "Swiftlink Automation is a UAE-based B2B SaaS company that builds "
-        "WhatsApp automation, warehouse management, and fleet dispatch "
-        "software for logistics companies with 50-500 employees across the "
-        "GCC region."
-    )
+TEST_COMPANY_TEXT = (
+    "Swiftlink Automation is a UAE-based B2B SaaS company that builds "
+    "WhatsApp automation, warehouse management, and fleet dispatch "
+    "software for logistics companies with 50-500 employees across the "
+    "GCC region."
+)
 
 
 async def main():
@@ -42,11 +35,10 @@ async def main():
     print("AGENT PIPELINE TEST RUN")
     print("=" * 70)
 
-    company_text = load_seed_company_text()
-    print(f"\nLoaded company profile ({len(company_text)} chars) from:")
-    print(f"  {SEED_FILE if SEED_FILE.exists() else '(mocked — seed file missing)'}")
+    company_text = TEST_COMPANY_TEXT
+    print(f"\nCompany profile ({len(company_text)} chars)")
 
-    print(f"\nHardcoded ICP: {HARDCODED_ICP}")
+    print(f"\nTest ICP: {TEST_ICP}")
     print("\nRunning pipeline (session_id='test_001')... this calls Gemini, "
           "Tavily/Serper, Apollo, and Hunter — it will take a while and needs "
           "real API keys in backend/.env for non-empty results.\n")
@@ -55,7 +47,7 @@ async def main():
         session_id="test_001",
         raw_input=company_text,
         input_type="text",
-        icp_raw=HARDCODED_ICP,
+        icp_raw=TEST_ICP,
     )
 
     raw_leads = final_state.get("raw_leads", [])

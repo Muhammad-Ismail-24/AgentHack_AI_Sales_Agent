@@ -108,7 +108,7 @@ export default function Leads() {
             title={leads.length === 0 ? 'No leads yet' : 'Nothing matches those filters'}
             description={
               leads.length === 0
-                ? 'Run the pipeline or load the demo seed data.'
+                ? 'Run the pipeline to discover and qualify leads.'
                 : 'Try clearing the search box or picking a different stage.'
             }
             actionLabel={leads.length === 0 ? 'Set up a run' : 'Clear filters'}

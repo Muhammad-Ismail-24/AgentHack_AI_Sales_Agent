@@ -130,7 +130,7 @@ export default function Onboarding() {
         </div>
 
         <p className="mt-6 text-center text-xs text-slate-600">
-          Already have seed data loaded?{' '}
+          Already ran the pipeline?{' '}
           <button
             type="button"
             onClick={() => navigate('/pipeline')}

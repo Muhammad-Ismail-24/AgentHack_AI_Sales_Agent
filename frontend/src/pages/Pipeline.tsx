@@ -110,7 +110,7 @@ export default function Pipeline() {
           <EmptyState
             icon="▦"
             title="No leads yet"
-            description="Run the pipeline against your ICP, or load the demo seed data to explore the dashboard."
+            description="Run the pipeline against your ICP — every lead here comes from a real run."
             actionLabel="Set up a run"
             onAction={() => navigate('/onboarding')}
           />
