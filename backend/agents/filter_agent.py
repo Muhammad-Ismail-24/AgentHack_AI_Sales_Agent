@@ -2,33 +2,69 @@
 
 Classifies leads in batches (one LLM call per BATCH_SIZE leads) instead of one
 call per lead — a raw_leads list of ~30 used to cost ~30 calls here alone,
-which is most of a Gemini free-tier daily quota on its own. Falls back to the
-old per-lead prompt only for a chunk whose batched response doesn't parse
-cleanly, so a single malformed response can't take out the whole run.
+which is most of a Gemini free-tier daily quota on its own.
 
-A 429 (quota exhausted) is handled separately from a malformed response: once
-quota is confirmed gone, every further call — batched or per-lead — is going
-to fail the same way, so retrying per-lead on a quota error would only burn
-more requests for nothing. Instead the whole run stops calling the LLM and
-state['error'] is set so the pipeline status reports the real reason instead
-of silently completing with 0 qualified leads.
+A batch response can fail in two different ways, handled differently:
+  - Quota exhausted (429): every further call is going to fail the same way,
+    so the whole run stops calling the LLM immediately rather than retrying
+    per-lead for nothing.
+  - Truncated/malformed JSON (e.g. GEMINI_MAX_TOKENS cut the array off
+    mid-object): salvaged as far as it parses via _extract_partial_array, and
+    only the leads past the truncation point fall back to a per-lead call —
+    not the whole chunk. A large chunk truncating used to mean up to
+    BATCH_SIZE extra calls; now it's only the unparsed tail.
+
+Either way, state['error'] is set when quota runs out so the pipeline status
+reports the real reason instead of silently completing with 0 qualified leads.
 """
 
 import json
 
-from agents.llm_utils import call_llm_json
+from agents.llm_utils import call_llm_json, call_llm_raw
+from agents.llm_utils import extract_json as _extract_json
 from config.prompts import BATCH_FILTER_PROMPT, FILTER_PROMPT
 from utils.logger import logger
 
-# Large enough to cover a typical discovery_agent run (3 queries x up to 10
-# results each, deduplicated) in a single call — see BATCH_FILTER_PROMPT's
-# token budget in prompts.py.
-BATCH_SIZE = 40
+# Kept small enough that a full batch's JSON array comfortably fits inside
+# GEMINI_MAX_TOKENS — a 40-lead batch was observed truncating mid-response.
+BATCH_SIZE = 15
 
 
 def _is_quota_error(exc: Exception) -> bool:
     text = str(exc)
     return "429" in text or "ResourceExhausted" in type(exc).__name__ or "quota" in text.lower()
+
+
+def _extract_partial_array(text: str) -> list[dict]:
+    """Recover as many leading objects as possible from a truncated JSON array.
+
+    Scans for top-level {...} blocks in order and stops at the first one that
+    doesn't parse — which is exactly where a max-tokens cutoff lands, since
+    everything before the cut is still well-formed JSON.
+    """
+    if not text:
+        return []
+
+    objects: list[dict] = []
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    obj = json.loads(text[start : i + 1])
+                except json.JSONDecodeError:
+                    break
+                if not isinstance(obj, dict):
+                    break
+                objects.append(obj)
+                start = None
+    return objects
 
 
 async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bool]:
@@ -58,8 +94,9 @@ async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bo
 async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], bool]:
     """Classify one chunk of leads with a single LLM call.
 
-    Falls back to per-lead calls for this chunk only if the batched response
-    doesn't come back as a same-length JSON array. Returns (kept, quota_exhausted).
+    A same-length JSON array is the fast path. Anything else falls back to
+    per-lead calls only for the leads the batch response didn't cover —
+    never the whole chunk. Returns (kept, quota_exhausted).
     """
     leads_block = "\n".join(
         f"{i}. {lead.get('company_name', '?')} — {lead.get('snippet', '')}"
@@ -70,33 +107,48 @@ async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], b
     )
 
     try:
-        result = await call_llm_json(prompt)
+        raw_text = await call_llm_raw(prompt)
     except Exception as e:
         if _is_quota_error(e):
             logger.warning("filter_agent: Gemini quota exhausted on batch call, stopping")
             return [], True
         logger.warning(f"filter_agent: batch call failed ({e}), falling back to per-lead")
-        result = None
+        raw_text = None
 
-    if not isinstance(result, list) or len(result) != len(chunk):
-        if result is not None:
-            logger.warning(
-                f"filter_agent: batch response unusable "
-                f"(got {type(result).__name__}, expected list of {len(chunk)}) — "
-                "falling back to per-lead calls for this chunk"
-            )
+    result = _extract_json(raw_text) if raw_text else None
+
+    if isinstance(result, list) and len(result) == len(chunk):
         kept = []
-        for lead in chunk:
-            is_fit, quota_exhausted = await _filter_lead_individually(lead, icp_json)
-            if quota_exhausted:
-                return kept, True
-            if is_fit:
+        for lead, verdict in zip(chunk, result):
+            if isinstance(verdict, dict) and verdict.get("is_potential_fit") is True:
                 kept.append(lead)
         return kept, False
 
+    # Full parse failed — salvage whatever leading objects are well-formed
+    # (covers truncation) before falling back per-lead for the remainder.
+    partial = _extract_partial_array(raw_text) if raw_text else []
+    covered = min(len(partial), len(chunk))
+    if covered:
+        logger.warning(
+            f"filter_agent: batch response only covered {covered}/{len(chunk)} leads "
+            "(truncated or malformed) — recovered the parseable prefix"
+        )
+    elif raw_text is not None:
+        logger.warning(
+            f"filter_agent: batch response unusable, 0/{len(chunk)} leads recovered — "
+            "falling back to per-lead for the whole chunk"
+        )
+
     kept = []
-    for lead, verdict in zip(chunk, result):
+    for lead, verdict in zip(chunk[:covered], partial[:covered]):
         if isinstance(verdict, dict) and verdict.get("is_potential_fit") is True:
+            kept.append(lead)
+
+    for lead in chunk[covered:]:
+        is_fit, quota_exhausted = await _filter_lead_individually(lead, icp_json)
+        if quota_exhausted:
+            return kept, True
+        if is_fit:
             kept.append(lead)
     return kept, False
 
