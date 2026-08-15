@@ -1,0 +1,51 @@
+Swiftlink Automation
+
+Swiftlink Automation is a B2B SaaS company based in Dubai, UAE, founded in
+2019. We build workflow automation software for logistics and freight
+forwarding companies across the Middle East, helping them replace manual,
+spreadsheet-driven operations with automated, real-time systems.
+
+Our Services:
+
+1. WhatsApp Automation Suite - Automates customer notifications, delivery
+   status updates, proof-of-delivery collection, and support ticket triage
+   directly over WhatsApp Business API. Built specifically for logistics
+   companies that rely on WhatsApp as their primary customer channel in the
+   GCC market. Typical customers see a 40% drop in "where is my order" phone
+   calls within the first month.
+
+2. Warehouse Management System (WMS) - Real-time inventory tracking, pick-
+   and-pack workflow optimisation, and barcode/RFID scanning integration.
+   Designed for warehouses handling 500 to 50,000 SKUs.
+
+3. Fleet & Dispatch Optimisation - Route planning, driver assignment, and
+   live GPS tracking for last-mile delivery fleets. Includes a driver mobile
+   app and a dispatcher web dashboard.
+
+4. Customs & Compliance Automation - Automated document generation and
+   validation for cross-border shipments within the GCC, reducing customs
+   clearance delays.
+
+Who We Serve:
+
+We work best with mid-sized logistics, freight-forwarding, and e-commerce
+fulfilment companies with 50-500 employees, operating in the UAE, Saudi
+Arabia, or the broader GCC region, who are still relying on manual processes
+(spreadsheets, phone calls, generic WhatsApp Business app) for customer
+communication and are looking to scale delivery volume without proportionally
+scaling headcount.
+
+Why Companies Choose Us:
+
+- Native WhatsApp Business API integration, not a bolted-on afterthought
+- Deployed and live within 2 weeks, not months
+- Arabic and English support out of the box
+- Pricing scales with shipment volume, not seat count
+
+Pricing:
+
+Starter plan starts at $499/month for up to 5,000 shipments. Enterprise
+plans are custom-priced based on shipment volume and number of integrated
+warehouses.
+
+Contact: hello@swiftlinkautomation.com
