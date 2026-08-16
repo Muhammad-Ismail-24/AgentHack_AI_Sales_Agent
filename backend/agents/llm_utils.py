@@ -21,9 +21,15 @@ every agent AND the comms classifier/follow-up/briefing calls — all of which
 funnel through call_llm_raw() below. A sliding-window limiter here holds each
 call until a slot is free (GEMINI_RPM, default 14 for headroom), so no matter
 how many agents or concurrent runs want the model, the key never exceeds its
-budget. A 429 that still slips through (another process on the same key, or
-the daily cap) waits out the server-suggested delay up to GEMINI_429_RETRIES
-times, then raises GeminiQuotaExhausted rather than burning further requests.
+budget.
+
+Quota: the free tier also caps *requests per day, per model* — a 429 names it
+GenerateRequestsPerDayPerProjectPerModel-FreeTier. Waiting does not clear that
+one, but another model has its own untouched budget, so a 429 walks along
+settings.gemini_model_chain instead of sleeping (`-lite` models first, their
+caps being the most generous). Only once every model in the chain is spent
+does a call wait out the server-suggested delay, up to GEMINI_429_RETRIES
+times, and then raise GeminiQuotaExhausted.
 """
 
 import asyncio
@@ -48,7 +54,7 @@ class GeminiQuotaExhausted(RuntimeError):
     """
 
 
-_model_name: str | None = None
+_model_index = 0
 _client: httpx.AsyncClient | None = None
 
 # ── Sliding-window RPM limiter ───────────────────────────────────────
@@ -95,32 +101,33 @@ def _get_client() -> httpx.AsyncClient:
 
 
 def _current_model() -> str:
-    global _model_name
-    if _model_name is None:
-        _model_name = settings.GEMINI_MODEL
-    return _model_name
+    chain = settings.gemini_model_chain
+    return chain[min(_model_index, len(chain) - 1)] if chain else settings.GEMINI_MODEL
 
 
-def _switch_to_fallback() -> str | None:
-    """Swap to the fallback model after a 404.
+def _advance_model(reason: str) -> str | None:
+    """Move to the next model in the chain. None when the chain is spent.
 
-    Google retires named Gemini models on a rolling basis, and a retired
-    model turns every agent call into a 404. Rather than fail the whole run,
-    move to the `-latest` alias once and keep going. Returns None when there
-    is nothing left to fall back to, which makes the caller surface the 404.
+    Covers both ways a model stops working: Google retires names on a rolling
+    basis (404), and the free tier's request cap is per model per day (429).
+    Either way the next entry has its own budget, so stepping along the chain
+    keeps a run alive where retrying the same model cannot. The index is
+    process-global on purpose — once a model is known bad, every later call
+    should skip it rather than rediscover it one 429 at a time.
     """
-    global _model_name
-    fallback = settings.GEMINI_FALLBACK_MODEL
-    if not fallback or _model_name == fallback:
+    global _model_index
+    chain = settings.gemini_model_chain
+    if _model_index >= len(chain) - 1:
         return None
 
+    previous = chain[_model_index]
+    _model_index += 1
+    nxt = chain[_model_index]
     logger.warning(
-        "Gemini model %r unavailable — falling back to %r. "
-        "Update GEMINI_MODEL in .env to silence this.",
-        _model_name, fallback,
+        "Gemini model %r %s — switching to %r (%d of %d in the chain)",
+        previous, reason, nxt, _model_index + 1, len(chain),
     )
-    _model_name = fallback
-    return fallback
+    return nxt
 
 
 async def _generate(model: str, prompt: str) -> httpx.Response:
@@ -239,22 +246,32 @@ async def call_llm_raw(prompt: str) -> str:
 
         # A retired model reports itself as a 404 / NotFound.
         if response.status_code == 404:
-            if _switch_to_fallback() is None:
+            if _advance_model("is unavailable") is None:
                 raise RuntimeError(f"Gemini model not found: {body[:300]}")
             continue
 
         if response.status_code == 429:
+            # Try another model before sleeping. The cap that bites here is
+            # per model per day, so the next model answers immediately while
+            # waiting on this one would not help until the quota resets.
+            if _advance_model("is out of quota") is not None:
+                continue
+
+            # Chain spent: nothing left but to wait out the delay the server
+            # asked for, which is the right move for a per-minute limit.
             if attempt >= quota_retries:
                 raise GeminiQuotaExhausted(
-                    "Gemini API quota exhausted (429) after "
-                    f"{attempt + 1} attempt(s). The free tier allows "
-                    f"{settings.GEMINI_RPM}/min — if this persists, the "
-                    "daily cap is likely spent."
+                    "Gemini API quota exhausted (429) on every model in the "
+                    f"chain ({', '.join(settings.gemini_model_chain)}) after "
+                    f"{attempt + 1} attempt(s). The free tier caps requests "
+                    "per model per day — if this persists, the daily budget "
+                    "is spent on all of them."
                 )
             delay = _suggested_retry_seconds(body) or 20.0
             attempt += 1
             logger.warning(
-                "Gemini 429 — waiting %.0fs then retrying (%d/%d)",
+                "Gemini 429 on the last model in the chain — waiting %.0fs "
+                "then retrying (%d/%d)",
                 delay, attempt, quota_retries,
             )
             await asyncio.sleep(delay)

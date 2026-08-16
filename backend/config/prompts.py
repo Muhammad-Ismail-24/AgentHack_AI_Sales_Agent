@@ -36,13 +36,22 @@ Respond with ONLY valid JSON matching this exact schema, no extra text:
 
 
 FILTER_PROMPT = """You are a fast B2B lead qualifier. You are given a company name
-and a short snippet describing it, plus the target ICP. Decide quickly whether
-this company could plausibly be a fit for the ICP.
+and a short snippet describing it, plus the target ICP. Decide whether this is
+worth researching properly.
 
-Be aggressive at filtering — say NO quickly. This is a cheap first pass before
-expensive research, so only keep companies that are a clear, plausible fit.
-When the snippet gives too little information to judge, prefer NO over
-guessing.
+This is a cheap triage pass, not the scoring step. Its only job is to throw out
+things that are obviously not a prospect. Judge on two questions:
+  1. Is this an actual operating company (not a listicle, directory, market
+     report, jobs board, news article or industry association)?
+  2. Is it plausibly in the ICP's industry and region?
+
+Answer true when both hold. A search snippet is one or two lines, so it will
+almost never mention employee count, revenue, tooling or pain points — do NOT
+answer false because those are missing or because the company looks bigger or
+smaller than the target size. Those get checked later against real research,
+and rejecting on them here throws away good leads before anyone looks at them.
+Reserve false for a clear mismatch: the wrong industry, the wrong part of the
+world, or not a company at all.
 
 Company name: {company_name}
 Snippet: {snippet}
@@ -57,11 +66,21 @@ Respond with ONLY valid JSON matching this exact schema, no extra text:
 
 BATCH_FILTER_PROMPT = """You are a fast B2B lead qualifier. You are given a numbered
 list of candidate companies (name + short snippet) and the target ICP. For
-EACH company, decide quickly whether it could plausibly be a fit for the ICP.
+EACH company, decide whether it is worth researching properly.
 
-Be aggressive at filtering — say NO quickly. This is a cheap first pass before
-expensive research, so only keep companies that are a clear, plausible fit.
-When a snippet gives too little information to judge, prefer NO over guessing.
+This is a cheap triage pass, not the scoring step. Its only job is to throw out
+things that are obviously not a prospect. For each entry judge two questions:
+  1. Is this an actual operating company (not a listicle, directory, market
+     report, jobs board, news article or industry association)?
+  2. Is it plausibly in the ICP's industry and region?
+
+Answer true when both hold. A search snippet is one or two lines, so it will
+almost never mention employee count, revenue, tooling or pain points — do NOT
+answer false because those are missing or because the company looks bigger or
+smaller than the target size. Those get checked later against real research,
+and rejecting on them here throws away good leads before anyone looks at them.
+Reserve false for a clear mismatch: the wrong industry, the wrong part of the
+world, or not a company at all.
 
 Target ICP: {icp}
 

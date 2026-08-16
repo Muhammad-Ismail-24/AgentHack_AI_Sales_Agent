@@ -47,6 +47,29 @@ class Settings(BaseSettings):
     # Used automatically if GEMINI_MODEL has been retired. `-latest` aliases
     # track the current release, so this keeps working without a code change.
     GEMINI_FALLBACK_MODEL: str = "gemini-flash-latest"
+    # Tried in order, after GEMINI_MODEL and GEMINI_FALLBACK_MODEL, when a
+    # model is out of quota or has been retired. The free-tier request cap is
+    # per project *per model* (the 429 names it
+    # GenerateRequestsPerDayPerProjectPerModel-FreeTier), so each entry here
+    # carries its own daily budget and a spent model does not stop the run.
+    # `-lite` models are listed first because their free-tier caps are the
+    # most generous. Comma-separated; blank disables chaining.
+    GEMINI_MODEL_FALLBACKS: str = (
+        "gemini-3.5-flash-lite,gemini-flash-lite-latest,"
+        "gemini-3.6-flash,gemini-3.7-flash"
+    )
+
+    @property
+    def gemini_model_chain(self) -> list[str]:
+        """Every model to try, in order, deduplicated and blank-free."""
+        names = [self.GEMINI_MODEL, self.GEMINI_FALLBACK_MODEL]
+        names += self.GEMINI_MODEL_FALLBACKS.split(",")
+        chain: list[str] = []
+        for name in names:
+            cleaned = (name or "").strip()
+            if cleaned and cleaned not in chain:
+                chain.append(cleaned)
+        return chain
     GEMINI_MAX_TOKENS: int = 4096
     # Free-tier budget is 15 requests/minute across everything sharing the
     # key. The limiter in agents/llm_utils.py holds calls to this many per
@@ -57,7 +80,12 @@ class Settings(BaseSettings):
     GEMINI_429_RETRIES: int = 2
 
     # ── Embeddings ───────────────────────────────────────────────────
-    GEMINI_EMBEDDING_MODEL: str = "models/text-embedding-004"
+    # text-embedding-004 was retired — it 404s on embedContent, which made
+    # rag/embedder.py fail its health check on every boot and fall back to
+    # downloading the local FastEmbed model. gemini-embedding-001 is the
+    # current one (3072 dims). Collections are per-session, so a dimension
+    # change never clashes with an existing one.
+    GEMINI_EMBEDDING_MODEL: str = "models/gemini-embedding-001"
     FASTEMBED_MODEL: str = "BAAI/bge-small-en-v1.5"
 
     # ── Web search / research ────────────────────────────────────────

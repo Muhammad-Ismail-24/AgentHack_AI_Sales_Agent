@@ -22,6 +22,24 @@ def _field(icp_raw: dict, *names: str, default: str) -> str:
     return default
 
 
+def _is_searchable(icp: object) -> bool:
+    """True when discovery_agent could actually build a query from this ICP.
+
+    Being a dict is not enough. _build_queries works from keywords_to_search,
+    falling back to industry + location, so a response like {} or one that
+    only carries `focus` yields no queries at all — discovery then searches
+    nothing and the run ends `complete` with 0 leads and no error, which is
+    the failure this fallback exists to prevent. Treat those as unusable and
+    take the form answers instead.
+    """
+    if not isinstance(icp, dict):
+        return False
+    if any(str(k).strip() for k in (icp.get("keywords_to_search") or [])):
+        return True
+    return bool(str(icp.get("industry") or "").strip()
+                or str(icp.get("location") or "").strip())
+
+
 def _fallback_icp(icp_raw: dict) -> dict:
     """The form answers, shaped like ICP_STRUCTURING_PROMPT's output schema.
 
@@ -67,10 +85,11 @@ async def run(state: dict) -> dict:
         )
 
         parsed = await call_llm_json(prompt)
-        if not isinstance(parsed, dict):
+        if not _is_searchable(parsed):
             logger.warning(
-                "icp_agent: the LLM did not return a valid ICP JSON object — "
-                "falling back to the raw form answers"
+                "icp_agent: the LLM returned no usable ICP (%r) — falling back "
+                "to the raw form answers",
+                parsed,
             )
             state["icp"] = _fallback_icp(icp_raw)
             return state

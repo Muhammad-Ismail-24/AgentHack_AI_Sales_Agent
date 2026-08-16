@@ -15,8 +15,18 @@ Firestore, without which every data route fails.
 | `GEMINI_API_KEY` | all 9 agents, reply classification, follow-up drafting, meeting briefings | aistudio.google.com → Get API key |
 | `GOOGLE_API_KEY` | same — the name the Google SDKs use by convention | either key works; `GEMINI_API_KEY` wins when both are set |
 | `GEMINI_MODEL` | optional override, defaults to `gemini-3.5-flash` | — |
+| `GEMINI_FALLBACK_MODEL` | first model tried when `GEMINI_MODEL` is retired or out of quota | defaults to `gemini-flash-latest` |
+| `GEMINI_MODEL_FALLBACKS` | comma-separated models tried after that, each with its own daily budget | defaults to `gemini-3.5-flash-lite,gemini-flash-lite-latest,gemini-3.6-flash,gemini-3.7-flash`; blank disables chaining |
+| `GEMINI_EMBEDDING_MODEL` | embedding model for the RAG store | defaults to `models/gemini-embedding-001`. `text-embedding-004` is retired and 404s. |
 | `GEMINI_RPM` | requests/minute budget for the shared key — the limiter in `agents/llm_utils.py` holds every LLM call (agents *and* comms) to this rate | free tier allows 15; default 14 for headroom. Raise on a paid tier. |
-| `GEMINI_429_RETRIES` | how many times one call waits out a 429 before failing with a clear quota error | default 2 |
+| `GEMINI_429_RETRIES` | how many times the call waits out a 429 *after every model in the chain is spent* | default 2 |
+
+The free tier caps requests **per day, per model** — a 429 names the quota
+`GenerateRequestsPerDayPerProjectPerModel-FreeTier`, typically 20/day. Waiting
+does not clear that, so `llm_utils` moves along the model chain instead; each
+model has its own budget, and `-lite` models are listed first because their
+caps are the most generous. Run `GET /v1beta/models` to see which models a key
+can actually reach before adding one to the chain.
 
 Without a Gemini key the comms LLM drops into mock mode (keyword-heuristic
 classification) and the agent pipeline cannot run.
