@@ -32,7 +32,11 @@ _log = get_logger("api.emails")
 class EmailSchema(BaseModel):
     id: str
     lead_id: str
-    contact_id: str
+    # Optional, matching email_doc: a lead whose domain Hunter could not
+    # enrich has no contact, and its draft is still worth showing. Requiring
+    # a str here made one such row fail validation and took the whole
+    # GET /emails response down with a 500.
+    contact_id: Optional[str] = None
     subject: str
     body: str
     status: str
@@ -41,7 +45,10 @@ class EmailSchema(BaseModel):
 
 class SendEmailRequest(BaseModel):
     lead_id: str
-    contact_id: str
+    # Also optional so a send attempt on a contactless lead reaches the
+    # handler and comes back as "no contact" rather than a 422 the UI has
+    # no message for.
+    contact_id: Optional[str] = None
     subject: str
     body: str
 
@@ -59,6 +66,18 @@ async def list_emails() -> List[EmailSchema]:
 
 @router.post("/send", response_model=SendEmailResponse)
 async def send_email(payload: SendEmailRequest) -> SendEmailResponse:
+    if not payload.contact_id:
+        # No decision maker was found for this lead, so there is no address
+        # to send to. Say so plainly instead of looking up a None id.
+        _log.warning("send_email: lead %s has no contact to send to", payload.lead_id)
+        return SendEmailResponse(
+            success=False,
+            message=(
+                "This lead has no verified contact yet, so there is no address "
+                "to send to. Contacts come from the Hunter lookup during a run."
+            ),
+        )
+
     contact = crud.get_contact(payload.contact_id)
     if contact is None:
         _log.warning("send_email: unknown contact_id=%s", payload.contact_id)
