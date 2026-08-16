@@ -47,9 +47,14 @@ def _resolve_contact(chosen: object, candidates: list[dict]) -> dict:
         )
         match = fallback
 
+    # `or ""` rather than a .get default: Hunter returns the key present and
+    # set to None for role addresses (info@, sales@), and a plain default only
+    # applies when the key is absent — so the naive form rendered the contact
+    # as the literal string "None None" in the Inbox and on the meeting card.
+    name = f"{match.get('first_name') or ''} {match.get('last_name') or ''}".strip()
     return {
-        "name": f"{match.get('first_name', '')} {match.get('last_name', '')}".strip(),
-        "role": match.get("position", ""),
+        "name": name,
+        "role": match.get("position") or "",
         "email": match["email"],
     }
 
@@ -88,9 +93,9 @@ async def run(state: dict) -> dict:
                 )
                 available_contacts = [
                     {
-                        "name": f"{c.get('first_name', '')} {c.get('last_name', '')}".strip(),
-                        "role": c.get("position", ""),
-                        "email": c.get("email", ""),
+                        "name": f"{c.get('first_name') or ''} {c.get('last_name') or ''}".strip(),
+                        "role": c.get("position") or "",
+                        "email": c.get("email") or "",
                     }
                     for c in candidates
                     if c.get("email")

@@ -139,6 +139,13 @@ class Settings(BaseSettings):
     CAL_API_KEY: str = ""
     CALCOM_API_KEY: str = ""
     CALENDAR_BASE_URL: str = "https://cal.com/admin"
+    # Your real, public booking page — the one a prospect can actually open.
+    # Cal.com, Calendly or a Google Calendar appointment schedule all work;
+    # paste the link exactly as the provider gives it, e.g.
+    # https://cal.com/your-name/30min. This is what goes in every outreach
+    # email and every meeting-link reply. Leave it blank and the old
+    # per-company path is generated instead, which 404s.
+    CALENDAR_BOOKING_URL: str = ""
 
     # ── WhatsApp: Green API is the active path ────────────────────────
     # Simple REST API — {GREEN_API_URL}/waInstance{id}/sendMessage/{token}.
