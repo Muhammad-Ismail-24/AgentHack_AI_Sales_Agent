@@ -40,6 +40,16 @@ class EmailSender:
         self._resend = None
         self._smtp = bool(settings.smtp_configured)
 
+        # The two transports demand different From addresses and cannot share
+        # one. SMTP must send as the authenticated mailbox or Gmail rewrites
+        # or rejects it, which is why settings.sender_email prefers SMTP_USER.
+        # Resend instead refuses any domain you have not verified — handing it
+        # that same @gmail.com address fails with "The gmail.com domain is not
+        # verified". SENDER_EMAIL is the address meant for Resend, and
+        # onboarding@resend.dev is their shared sender, which works without a
+        # domain but only delivers to the account holder.
+        self.resend_from = settings.SENDER_EMAIL or "onboarding@resend.dev"
+
         if settings.RESEND_API_KEY:
             try:
                 import resend
@@ -56,7 +66,7 @@ class EmailSender:
                 " (Resend available as a fallback)" if self._resend else "",
             )
         elif self._resend:
-            _log.info("EmailSender using Resend as %s", self.from_email)
+            _log.info("EmailSender using Resend as %s", self.resend_from)
         else:
             _log.warning(
                 "no SMTP or Resend credentials - EmailSender running in MOCK MODE"
@@ -107,7 +117,7 @@ class EmailSender:
     async def _try_resend(self, to_email: str, subject: str, body: str) -> dict:
         try:
             params = {
-                "from": self.from_email,
+                "from": self.resend_from,
                 "to": [to_email],
                 "subject": subject,
                 "html": body.replace("\n", "<br>"),
