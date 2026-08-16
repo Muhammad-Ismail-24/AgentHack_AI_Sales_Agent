@@ -22,13 +22,41 @@ def _field(icp_raw: dict, *names: str, default: str) -> str:
     return default
 
 
+def _fallback_icp(icp_raw: dict) -> dict:
+    """The form answers, shaped like ICP_STRUCTURING_PROMPT's output schema.
+
+    Used whenever the LLM cannot structure the ICP. It matters that this is
+    never empty: discovery_agent builds its search queries from state['icp']
+    alone, and _build_queries({}) returns zero queries — so leaving `icp`
+    unset meant discovery ran no searches at all and the whole run finished
+    with 0 leads, reported as `complete` with no error. The raw form fields
+    are the user's own stated intent and make a perfectly usable query.
+
+    `keywords_to_search` is deliberately empty: _build_queries falls back to
+    its industry + location path when there are none, and inventing keywords
+    without the LLM is exactly what produced listicle queries before.
+    """
+    return {
+        "location": _field(icp_raw, "location", default=""),
+        "industry": _field(icp_raw, "industry", default=""),
+        "size_range": _field(icp_raw, "company_size", "size", default=""),
+        "focus": _field(icp_raw, "special_focus", "focus", default=""),
+        "keywords_to_search": [],
+        "structured": False,
+    }
+
+
 async def run(state: dict) -> dict:
     """Read state['icp_raw'] (location, industry, size, focus), call the LLM
     with ICP_STRUCTURING_PROMPT, and set state['icp'] to the parsed result.
-    """
-    try:
-        icp_raw = state.get("icp_raw", {}) or {}
 
+    Always sets state['icp'] — on any failure it falls back to the raw form
+    answers rather than leaving the key unset. `structured` says which of the
+    two happened; this agent is the only writer of that flag.
+    """
+    icp_raw = state.get("icp_raw", {}) or {}
+
+    try:
         prompt = ICP_STRUCTURING_PROMPT.format(
             target_location=_field(icp_raw, "location", default="Anywhere"),
             target_industry=_field(icp_raw, "industry", default="Any industry"),
@@ -40,12 +68,20 @@ async def run(state: dict) -> dict:
 
         parsed = await call_llm_json(prompt)
         if not isinstance(parsed, dict):
-            logger.error("icp_agent: The LLM did not return a valid ICP JSON object")
+            logger.warning(
+                "icp_agent: the LLM did not return a valid ICP JSON object — "
+                "falling back to the raw form answers"
+            )
+            state["icp"] = _fallback_icp(icp_raw)
             return state
 
-        state["icp"] = parsed
+        state["icp"] = {**parsed, "structured": True}
         logger.info(f"icp_agent: structured ICP -> {parsed}")
         return state
     except Exception as e:
-        logger.error(f"icp_agent failed: {e}")
+        logger.warning(
+            f"icp_agent: could not structure the ICP ({e}) — falling back to "
+            f"the raw form answers, so discovery still has something to search"
+        )
+        state["icp"] = _fallback_icp(icp_raw)
         return state

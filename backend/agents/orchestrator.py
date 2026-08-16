@@ -96,8 +96,12 @@ async def build_icp(session_id: str, raw_icp: dict) -> dict | None:
     found nothing and every session fell back to echoing the form fields back
     with `structured: False`.
 
-    Returns None when the LLM gives us nothing usable — the bridge owns the
-    fallback, so there is no second copy of it here.
+    Passes icp_agent's result straight through, including its `structured`
+    flag — that agent is the only writer of it, and stamping True here would
+    mislabel the raw-form fallback as LLM-structured.
+
+    Returns None only if icp_agent somehow set nothing, which it no longer
+    does; the bridge owns that fallback, so there is no second copy here.
     """
     state = await icp_agent.run({"session_id": session_id, "icp_raw": raw_icp})
     icp = state.get("icp")
@@ -108,7 +112,7 @@ async def build_icp(session_id: str, raw_icp: dict) -> dict | None:
         )
         return None
 
-    return {**icp, "structured": True}
+    return icp
 
 
 async def run_pipeline(
