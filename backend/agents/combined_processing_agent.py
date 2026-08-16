@@ -11,7 +11,7 @@ empty contact rather than a fabricated one.
 import asyncio
 import json
 
-from agents.llm_utils import call_llm_json
+from agents.llm_utils import GeminiQuotaExhausted, call_llm_json
 from config.prompts import COMBINED_PROCESSING_PROMPT
 from config.settings import settings
 from rag.retriever import query as rag_query
@@ -70,6 +70,11 @@ async def run(state: dict) -> dict:
 
         qualified_leads = []
         outreach_queue = []
+        # Leads the LLM actually scored vs. leads whose call failed. Zero
+        # judged with N failures is a broken LLM, not a strict qualifier —
+        # the two must not produce the same silent empty result.
+        judged = 0
+        failures: list[str] = []
 
         for lead in researched_leads:
             try:
@@ -121,10 +126,12 @@ async def run(state: dict) -> dict:
                         f"combined_processing_agent: bad result for "
                         f"'{company_name}', skipping"
                     )
+                    failures.append(f"unusable LLM response for '{company_name}'")
                     continue
 
                 qual = result.get("qualification", {})
                 score = int(qual.get("score", 0))
+                judged += 1
 
                 lead = {
                     **lead,
@@ -158,7 +165,17 @@ async def run(state: dict) -> dict:
                         f"(score {score} < {settings.MIN_QUALIFICATION_SCORE})"
                     )
 
+            except GeminiQuotaExhausted as e:
+                # Every further lead would burn retries on a call that is
+                # guaranteed to fail — stop here, same as filter_agent does.
+                failures.append(str(e))
+                logger.error(
+                    "combined_processing_agent: Gemini quota exhausted — "
+                    f"stopping with {judged}/{len(researched_leads)} leads processed"
+                )
+                break
             except Exception as e:
+                failures.append(str(e))
                 logger.warning(
                     f"combined_processing_agent: failed to process lead "
                     f"'{lead.get('company_name', '?')}': {e}"
@@ -168,6 +185,25 @@ async def run(state: dict) -> dict:
 
         state["qualified_leads"] = qualified_leads
         state["outreach_queue"] = outreach_queue
+
+        if failures and judged == 0 and researched_leads:
+            # Nothing was scored at all. Append rather than overwrite —
+            # filter_agent may already have recorded its own failure.
+            message = (
+                f"Lead processing failed: the LLM could not score any of the "
+                f"{len(researched_leads)} researched leads "
+                f"({len(failures)} call(s) failed). "
+                f"Last error: {failures[-1][:200]}"
+            )
+            prior = state.get("error")
+            state["error"] = f"{prior} | {message}" if prior else message
+            logger.error(f"combined_processing_agent: {message}")
+        elif failures:
+            logger.warning(
+                f"combined_processing_agent: {len(failures)} lead(s) skipped due "
+                f"to LLM failures (last error: {failures[-1][:200]})"
+            )
+
         logger.info(
             f"combined_processing_agent: {len(qualified_leads)}/{len(researched_leads)} "
             f"leads processed successfully"

@@ -67,10 +67,17 @@ def _extract_partial_array(text: str) -> list[dict]:
     return objects
 
 
-async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bool]:
+async def _filter_lead_individually(
+    lead: dict, icp_json: str
+) -> tuple[bool | None, bool, str | None]:
     """One-call-per-lead fallback, used only when a batch response is unusable.
 
-    Returns (is_fit, quota_exhausted).
+    Returns (verdict, quota_exhausted, error). `verdict` is True/False when the
+    LLM actually judged the lead, and None when the call failed — the two must
+    stay distinguishable, because "the LLM said no to all 13" and "all 13 calls
+    threw" call for opposite reactions, and collapsing both to False made a
+    fully broken LLM look like a strict filter. `error` carries the exception
+    text when verdict is None.
     """
     try:
         prompt = FILTER_PROMPT.format(
@@ -79,24 +86,31 @@ async def _filter_lead_individually(lead: dict, icp_json: str) -> tuple[bool, bo
             icp=icp_json,
         )
         result = await call_llm_json(prompt)
-        return isinstance(result, dict) and result.get("is_potential_fit") is True, False
+        if not isinstance(result, dict):
+            # The call went through but the response wasn't usable JSON —
+            # still "could not judge", not "judged no".
+            return None, False, "LLM response was not a usable JSON object"
+        return result.get("is_potential_fit") is True, False, None
     except Exception as e:
         if _is_quota_error(e):
             logger.warning("filter_agent: Gemini quota exhausted mid per-lead fallback, stopping")
-            return False, True
+            return None, True, str(e)
         logger.warning(
             f"filter_agent: failed to filter lead "
             f"'{lead.get('company_name', '?')}': {e}"
         )
-        return False, False
+        return None, False, str(e)
 
 
-async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], bool]:
+async def _filter_chunk(
+    chunk: list[dict], icp_json: str
+) -> tuple[list[dict], bool, list[str]]:
     """Classify one chunk of leads with a single LLM call.
 
     A same-length JSON array is the fast path. Anything else falls back to
     per-lead calls only for the leads the batch response didn't cover —
-    never the whole chunk. Returns (kept, quota_exhausted).
+    never the whole chunk. Returns (kept, quota_exhausted, failures), where
+    `failures` holds one error string per lead the LLM never judged.
     """
     leads_block = "\n".join(
         f"{i}. {lead.get('company_name', '?')} — {lead.get('snippet', '')}"
@@ -111,7 +125,7 @@ async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], b
     except Exception as e:
         if _is_quota_error(e):
             logger.warning("filter_agent: Gemini quota exhausted on batch call, stopping")
-            return [], True
+            return [], True, [str(e)]
         logger.warning(f"filter_agent: batch call failed ({e}), falling back to per-lead")
         raw_text = None
 
@@ -122,7 +136,7 @@ async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], b
         for lead, verdict in zip(chunk, result):
             if isinstance(verdict, dict) and verdict.get("is_potential_fit") is True:
                 kept.append(lead)
-        return kept, False
+        return kept, False, []
 
     # Full parse failed — salvage whatever leading objects are well-formed
     # (covers truncation) before falling back per-lead for the remainder.
@@ -144,13 +158,17 @@ async def _filter_chunk(chunk: list[dict], icp_json: str) -> tuple[list[dict], b
         if isinstance(verdict, dict) and verdict.get("is_potential_fit") is True:
             kept.append(lead)
 
+    failures: list[str] = []
     for lead in chunk[covered:]:
-        is_fit, quota_exhausted = await _filter_lead_individually(lead, icp_json)
+        verdict, quota_exhausted, error = await _filter_lead_individually(lead, icp_json)
         if quota_exhausted:
-            return kept, True
-        if is_fit:
+            failures.append(error or "quota exhausted")
+            return kept, True, failures
+        if verdict is None:
+            failures.append(error or "unknown LLM failure")
+        elif verdict:
             kept.append(lead)
-    return kept, False
+    return kept, False, failures
 
 
 async def run(state: dict) -> dict:
@@ -166,10 +184,12 @@ async def run(state: dict) -> dict:
 
         filtered_leads = []
         quota_exhausted = False
+        failures: list[str] = []
         for start in range(0, len(raw_leads), BATCH_SIZE):
             chunk = raw_leads[start : start + BATCH_SIZE]
-            kept, quota_exhausted = await _filter_chunk(chunk, icp_json)
+            kept, quota_exhausted, chunk_failures = await _filter_chunk(chunk, icp_json)
             filtered_leads.extend(kept)
+            failures.extend(chunk_failures)
             if quota_exhausted:
                 break
 
@@ -183,6 +203,22 @@ async def run(state: dict) -> dict:
                 "paid API key."
             )
             logger.error(f"filter_agent: stopped early — {state['error']}")
+        elif failures and not filtered_leads:
+            # Every kept-count-zero outcome used to read as "the filter said no
+            # to everyone". When the LLM never judged them, say so — a run that
+            # classified nothing must not look like a run that found nothing.
+            state["error"] = (
+                f"Lead filtering failed: the LLM could not classify "
+                f"{len(failures)} of {len(raw_leads)} leads (none were kept). "
+                f"Last error: {failures[-1][:200]}"
+            )
+            logger.error(f"filter_agent: {state['error']}")
+        elif failures:
+            logger.warning(
+                f"filter_agent: {len(failures)} lead(s) dropped because the LLM "
+                f"call failed, not because they were judged unfit "
+                f"(last error: {failures[-1][:200]})"
+            )
         logger.info(
             f"filter_agent: kept {len(filtered_leads)}/{len(raw_leads)} leads "
             f"(dropped {dropped})"
