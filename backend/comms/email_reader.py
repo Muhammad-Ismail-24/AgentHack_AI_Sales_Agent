@@ -66,7 +66,9 @@ class EmailReader:
             )
             return {"matched": False, "classification": None, "next_action": None}
 
-        crud.create_reply(
+        # Stored before classifying so the reply survives even if the LLM
+        # call fails; the verdict is written back onto this row below.
+        reply = crud.create_reply(
             email_id=original_email["id"],
             raw_body=body,
             received_at=_parse_timestamp(timestamp),
@@ -83,6 +85,19 @@ class EmailReader:
         )
         classification = classification_result["classification"]
         next_action = await self._classifier.decide_next_action(classification, original_email["lead_id"])
+
+        # Write the verdict back onto the stored reply. Without this the
+        # classifier's work only ever existed in this function's locals: the
+        # reply row kept the nulls it was created with, so the Inbox listed
+        # every reply as unclassified with no next action, even when the
+        # meeting it triggered had already been booked.
+        if reply and reply.get("id"):
+            crud.update_reply_classification(
+                reply["id"],
+                classification,
+                summary=classification_result.get("summary"),
+                next_action=next_action,
+            )
 
         if next_action == "send_meeting_link":
             await MeetingManager().handle_meeting_request(original_email["lead_id"])
