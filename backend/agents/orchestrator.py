@@ -88,6 +88,29 @@ def get_compiled_graph():
     return _compiled_graph
 
 
+async def build_icp(session_id: str, raw_icp: dict) -> dict | None:
+    """Structure the ICP form answers on their own, without running the graph.
+
+    POST /icp/define calls this through orchestrator_bridge so the ICP screen
+    can show a real structured profile. Until it existed the bridge's getattr
+    found nothing and every session fell back to echoing the form fields back
+    with `structured: False`.
+
+    Returns None when the LLM gives us nothing usable — the bridge owns the
+    fallback, so there is no second copy of it here.
+    """
+    state = await icp_agent.run({"session_id": session_id, "icp_raw": raw_icp})
+    icp = state.get("icp")
+
+    if not isinstance(icp, dict) or not icp:
+        logger.warning(
+            f"orchestrator: could not structure ICP for session_id='{session_id}'"
+        )
+        return None
+
+    return {**icp, "structured": True}
+
+
 async def run_pipeline(
     session_id: str,
     raw_input: str,

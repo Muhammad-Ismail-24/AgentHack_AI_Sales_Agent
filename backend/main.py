@@ -73,6 +73,74 @@ def _stop_followup_scheduler() -> None:
         log.exception("follow-up scheduler failed to stop cleanly")
 
 
+# What each capability needs, and what silently degrades without it.
+#
+# A capability is satisfied when any one GROUP is fully set — SMTP needs its
+# three keys together, but Resend on its own is an equally valid sender.
+CAPABILITIES = [
+    (
+        "lead discovery",
+        (("SERPER_API_KEY",), ("TAVILY_API_KEY",)),
+        "discovery finds nothing and every run completes with 0 leads",
+    ),
+    (
+        "LLM (Gemini)",
+        (("GEMINI_API_KEY",), ("GOOGLE_API_KEY",)),
+        "the agents fall back to mock output",
+    ),
+    (
+        "contact enrichment",
+        (("APOLLO_API_KEY",), ("HUNTER_API_KEY",)),
+        "qualified leads have no real address to send outreach to",
+    ),
+    (
+        "outreach email",
+        (("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"), ("RESEND_API_KEY",)),
+        "EmailSender runs in MOCK MODE and nothing is actually delivered",
+    ),
+]
+
+
+def _describe(groups: tuple[tuple[str, ...], ...]) -> str:
+    return " or ".join(" + ".join(group) for group in groups)
+
+
+def _log_capability_warnings() -> None:
+    """Name every capability whose keys are missing, once, at boot.
+
+    Serper, Tavily, Apollo and Hunter each log a warning and return an empty
+    result when their key is unset — none of them raise. A misconfigured
+    deploy therefore looks exactly like a working one from the outside: the
+    pipeline reports `complete` with `error: null` and simply has no leads in
+    it. Checking here turns that into something you can read at startup
+    instead of having to infer it from an empty dashboard.
+    """
+    degraded = 0
+
+    for capability, groups, consequence in CAPABILITIES:
+        satisfied = any(
+            all(getattr(settings, key, "") for key in group) for group in groups
+        )
+        if not satisfied:
+            degraded += 1
+            log.warning(
+                "%s is DISABLED — set %s, or %s",
+                capability,
+                _describe(groups),
+                consequence,
+            )
+
+    if degraded:
+        log.warning(
+            "%d of %d capabilities degraded — the API will start, but the "
+            "pipeline will not produce usable results until they are set",
+            degraded,
+            len(CAPABILITIES),
+        )
+    else:
+        log.info("all %d capability key groups present", len(CAPABILITIES))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown."""
@@ -87,6 +155,8 @@ async def lifespan(app: FastAPI):
             "firestore is NOT connected — set FIREBASE_SERVICE_ACCOUNT_PATH in "
             ".env. The API will start but every data route will return 503."
         )
+
+    _log_capability_warnings()
 
     settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     _start_followup_scheduler()
