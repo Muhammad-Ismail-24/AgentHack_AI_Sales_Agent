@@ -6,8 +6,10 @@ import TopBar from '../components/layout/TopBar';
 import MeetingCard from '../components/meetings/MeetingCard';
 import EmptyState from '../components/ui/EmptyState';
 import Spinner from '../components/ui/Spinner';
+import Toast from '../components/ui/Toast';
 import { useLeads } from '../hooks/useLeads';
 import { usePipelineContext } from '../hooks/usePipeline';
+import { useToast } from '../hooks/useToast';
 import { describeError, getMeetings } from '../lib/api';
 import type { Meeting } from '../lib/types';
 
@@ -15,6 +17,7 @@ export default function Meetings() {
   const navigate = useNavigate();
   const { isRunning } = usePipelineContext();
   const { leads } = useLeads();
+  const { toast, showToast, hideToast } = useToast();
 
   const [meetings, setMeetings] = useState<Meeting[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -72,6 +75,8 @@ export default function Meetings() {
         contactName={
           meeting.contact_id ? entry?.contacts.get(meeting.contact_id) : null
         }
+        onError={(message) => showToast(message, 'error')}
+        onNotice={(message) => showToast(message, 'success')}
       />
     );
   }
@@ -125,6 +130,10 @@ export default function Meetings() {
           </div>
         )}
       </PageWrapper>
+
+      {toast && (
+        <Toast message={toast.message} type={toast.type} onClose={hideToast} />
+      )}
     </>
   );
 }

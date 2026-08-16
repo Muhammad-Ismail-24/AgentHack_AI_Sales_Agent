@@ -27,6 +27,7 @@ from db import firestore as fs
 from db.models import (
     CONTACT_FIELDS,
     LEAD_FIELDS,
+    autopsy_doc,
     contact_doc,
     email_doc,
     event_doc,
@@ -35,6 +36,7 @@ from db.models import (
     meeting_doc,
     new_id,
     reply_doc,
+    verdict_doc,
 )
 from utils.logger import get_logger
 
@@ -239,7 +241,15 @@ def delete_lead(lead_id: str) -> bool:
     if get_lead(lead_id) is None:
         return False
 
-    for collection in (fs.CONTACTS, fs.EMAILS, fs.MEETINGS, fs.FOLLOWUPS, fs.PIPELINE_EVENTS):
+    for collection in (
+        fs.CONTACTS,
+        fs.EMAILS,
+        fs.MEETINGS,
+        fs.FOLLOWUPS,
+        fs.PIPELINE_EVENTS,
+        fs.VERDICTS,
+        fs.AUTOPSIES,
+    ):
         for row in _where(collection, "lead_id", lead_id):
             if collection == fs.EMAILS:
                 for reply in _where(fs.REPLIES, "email_id", row["id"]):
@@ -677,6 +687,72 @@ def create_event(
 def get_events_for_lead(lead_id: str) -> list[dict]:
     """Timeline for a lead, oldest first."""
     return _sorted(_where(fs.PIPELINE_EVENTS, "lead_id", lead_id), "created_at")
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DEVIL'S ADVOCATE VERDICTS
+# ══════════════════════════════════════════════════════════════════════
+
+def create_verdict(lead_id: str, debate: dict[str, Any]) -> dict:
+    """Store one resolved debate. Re-running a lead adds a document rather
+    than replacing the last one, so the earlier verdicts stay as history."""
+    doc = verdict_doc(
+        lead_id=lead_id,
+        prosecution=debate.get("prosecution") or [],
+        defense=debate.get("defense") or [],
+        prosecution_closing=debate.get("prosecution_closing"),
+        defense_closing=debate.get("defense_closing"),
+        winner=debate.get("winner"),
+        confidence=_clamp_score(debate.get("confidence")),
+        reasoning=debate.get("reasoning"),
+        decisive_argument=debate.get("decisive_argument"),
+        evidence_strength=debate.get("evidence_strength"),
+    )
+    _set(fs.VERDICTS, doc)
+    log.info(
+        "verdict for lead %s: %s wins at %s%%",
+        lead_id, doc["winner"], doc["confidence"],
+    )
+    return doc
+
+
+def get_latest_verdict(lead_id: str) -> dict | None:
+    """The most recent debate for a lead, or None if it has never been run."""
+    rows = _sorted(_where(fs.VERDICTS, "lead_id", lead_id), "created_at", reverse=True)
+    return rows[0] if rows else None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# DEAL AUTOPSIES
+# ══════════════════════════════════════════════════════════════════════
+
+def create_autopsy(lead_id: str, findings: dict[str, Any]) -> dict:
+    """Store one post-mortem, same append-only treatment as verdicts."""
+    doc = autopsy_doc(
+        lead_id=lead_id,
+        cause_of_death=findings.get("cause_of_death"),
+        cause_evidence=findings.get("cause_evidence"),
+        misfire=findings.get("misfire"),
+        misfire_tag=findings.get("misfire_tag"),
+        correction=findings.get("correction"),
+        icp_adjustment=findings.get("icp_adjustment"),
+        confidence=_clamp_score(findings.get("confidence")),
+        engagement_stats=findings.get("engagement_stats"),
+        final_stage=findings.get("final_stage"),
+    )
+    _set(fs.AUTOPSIES, doc)
+    log.info("autopsy for lead %s: %s", lead_id, doc["cause_of_death"])
+    return doc
+
+
+def get_latest_autopsy(lead_id: str) -> dict | None:
+    rows = _sorted(_where(fs.AUTOPSIES, "lead_id", lead_id), "created_at", reverse=True)
+    return rows[0] if rows else None
+
+
+def get_all_autopsies() -> list[dict]:
+    """Every post-mortem, newest first — the input to the insights rollup."""
+    return _sorted(_all(fs.AUTOPSIES), "created_at", reverse=True)
 
 
 # ══════════════════════════════════════════════════════════════════════

@@ -175,6 +175,19 @@ class Settings(BaseSettings):
     TWILIO_AUTH_TOKEN: str = ""
     TWILIO_WHATSAPP_FROM: str = ""
 
+    # ── Text-to-speech (drive-time audio briefing) ───────────────────
+    # Optional throughout: with no key the whisper is still generated and
+    # still delivered as text, only the audio clip is skipped.
+    ELEVENLABS_API_KEY: str = ""
+    # "Rachel" — a stock ElevenLabs voice available on every account, so the
+    # default works without anyone picking one first.
+    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"
+    ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"
+    ELEVENLABS_API_URL: str = "https://api.elevenlabs.io/v1"
+    # The briefing is meant to be listened to on the way to the meeting, so
+    # the script is truncated to roughly a minute before synthesis.
+    TTS_MAX_CHARS: int = 1200
+
     # ── RAG tuning (Ismail) ──────────────────────────────────────────
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 150
@@ -193,6 +206,8 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     UPLOAD_DIR: Path = REPO_ROOT / "data" / "uploads"
     SEED_DIR: Path = REPO_ROOT / "data" / "seeds"
+    # Generated audio briefings, served read-only at /audio by main.py.
+    AUDIO_DIR: Path = REPO_ROOT / "data" / "audio"
     FOLLOWUP_AFTER_DAYS: int = 3
     PIPELINE_STATE_TTL_SECONDS: int = 60 * 60 * 2  # 2 hours
 

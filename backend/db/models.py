@@ -204,3 +204,85 @@ def event_doc(
         "reason": reason,
         "created_at": created_at or now(),
     }
+
+
+# ── Intelligence layer ───────────────────────────────────────────────
+# Written by the on-demand agents, not by the pipeline. Both are keyed on
+# lead_id and only the newest per lead is ever read back, so re-running one
+# leaves the earlier document in place as history.
+
+# Which side the judge ruled for.
+VERDICT_WINNERS = ["prosecution", "defence"]
+EVIDENCE_STRENGTHS = ["high", "medium", "low"]
+
+# Machine-read by the autopsy insights endpoint to reweight the next run.
+# The prompt hands the model this exact list to choose from.
+MISFIRE_TAGS = [
+    "wrong_service",
+    "wrong_persona",
+    "wrong_timing",
+    "slow_response",
+    "weak_personalisation",
+    "no_engagement",
+    "price",
+]
+
+
+def verdict_doc(
+    lead_id: str,
+    prosecution: list[dict[str, Any]],
+    defense: list[dict[str, Any]],
+    prosecution_closing: str | None,
+    defense_closing: str | None,
+    winner: str | None,
+    confidence: int | None,
+    reasoning: str | None,
+    decisive_argument: str | None,
+    evidence_strength: str | None,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    """One resolved Devil's Advocate debate over a lead."""
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "prosecution": prosecution,
+        "defense": defense,
+        "prosecution_closing": prosecution_closing,
+        "defense_closing": defense_closing,
+        "winner": winner,
+        "confidence": confidence,
+        "reasoning": reasoning,
+        "decisive_argument": decisive_argument,
+        "evidence_strength": evidence_strength,
+        "created_at": now(),
+    }
+
+
+def autopsy_doc(
+    lead_id: str,
+    cause_of_death: str | None,
+    cause_evidence: str | None,
+    misfire: str | None,
+    misfire_tag: str | None,
+    correction: str | None,
+    icp_adjustment: str | None,
+    confidence: int | None,
+    engagement_stats: dict[str, Any] | None = None,
+    final_stage: str | None = None,
+    doc_id: str | None = None,
+) -> dict[str, Any]:
+    """The post-mortem on one dead lead."""
+    return {
+        "id": doc_id or new_id(),
+        "lead_id": lead_id,
+        "cause_of_death": cause_of_death,
+        "cause_evidence": cause_evidence,
+        "misfire": misfire,
+        "misfire_tag": misfire_tag,
+        "correction": correction,
+        "icp_adjustment": icp_adjustment,
+        "confidence": confidence,
+        "engagement_stats": engagement_stats or {},
+        "final_stage": final_stage,
+        "created_at": now(),
+    }

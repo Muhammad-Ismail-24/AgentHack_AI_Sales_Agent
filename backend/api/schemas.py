@@ -186,6 +186,106 @@ class LeadUpdateRequest(BaseModel):
 
 
 # ══════════════════════════════════════════════════════════════════════
+# Intelligence layer — Devil's Advocate, Deal Autopsy, Executive Whisperer
+# ══════════════════════════════════════════════════════════════════════
+
+class DebateArgument(ORMModel):
+    """One side's point, and the thing in the research it rests on."""
+
+    claim: str
+    evidence: str = "no evidence available"
+
+
+class VerdictResponse(ORMModel):
+    """A resolved Devil's Advocate debate. `confidence` is the lead's score."""
+
+    id: str
+    lead_id: str
+    prosecution: list[DebateArgument] = Field(default_factory=list)
+    defense: list[DebateArgument] = Field(default_factory=list)
+    prosecution_closing: str | None = None
+    defense_closing: str | None = None
+    winner: str | None = None
+    confidence: int | None = None
+    reasoning: str | None = None
+    decisive_argument: str | None = None
+    evidence_strength: str | None = None
+    created_at: datetime | None = None
+
+
+class EngagementStats(ORMModel):
+    """Measured from the records, never asked of the model."""
+
+    emails_sent: int = 0
+    replies_received: int = 0
+    their_avg_response_hours: float | None = None
+    our_avg_response_hours: float | None = None
+    stage_changes: int = 0
+    days_since_last_touch: float | None = None
+    died_at_stage: str | None = None
+
+
+class AutopsyResponse(ORMModel):
+    id: str
+    lead_id: str
+    cause_of_death: str | None = None
+    cause_evidence: str | None = None
+    misfire: str | None = None
+    misfire_tag: str | None = None
+    correction: str | None = None
+    icp_adjustment: str | None = None
+    confidence: int | None = None
+    engagement_stats: EngagementStats | None = None
+    final_stage: str | None = None
+    created_at: datetime | None = None
+
+
+class AutopsyLesson(BaseModel):
+    misfire_tag: str
+    count: int
+    share: int
+    adjustment: str
+
+
+class AutopsyInsightsResponse(BaseModel):
+    """What every post-mortem so far, taken together, says to change."""
+
+    total_autopsies: int = 0
+    misfire_counts: dict[str, int] = Field(default_factory=dict)
+    top_misfire: str | None = None
+    lessons: list[AutopsyLesson] = Field(default_factory=list)
+
+
+class WhisperObjection(BaseModel):
+    objection: str
+    rebuttal: str
+
+
+class WhisperResponse(BaseModel):
+    """The pre-call script — sentences to say, not a summary to read."""
+
+    meeting_id: str
+    lead_id: str
+    company_name: str
+    customer_problem: str | None = None
+    recommended_service: str | None = None
+    evidence: str | None = None
+    opening_line: str | None = None
+    key_points: list[str] = Field(default_factory=list)
+    objections: list[WhisperObjection] = Field(default_factory=list)
+    watch_out_for: list[str] = Field(default_factory=list)
+    audio_url: str | None = None
+
+
+class WhisperAudioResponse(BaseModel):
+    meeting_id: str
+    audio_url: str | None = None
+    script: str | None = None
+    whatsapp_sent: bool = False
+    message: str | None = None
+
+
+# ══════════════════════════════════════════════════════════════════════
 # Shared / misc
 # ══════════════════════════════════════════════════════════════════════
 

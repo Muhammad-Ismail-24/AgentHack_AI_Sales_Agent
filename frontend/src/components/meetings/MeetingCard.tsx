@@ -4,12 +4,15 @@ import type { Meeting } from '../../lib/types';
 import { formatDate, relativeTime } from '../../lib/utils';
 import Badge from '../ui/Badge';
 import Button from '../ui/Button';
+import ExecutiveWhisper from './ExecutiveWhisper';
 import MeetingBriefing from './MeetingBriefing';
 
 interface MeetingCardProps {
   meeting: Meeting;
   companyName: string;
   contactName?: string | null;
+  onError: (message: string) => void;
+  onNotice: (message: string) => void;
 }
 
 const STATUS_COLORS = {
@@ -30,6 +33,8 @@ export default function MeetingCard({
   meeting,
   companyName,
   contactName,
+  onError,
+  onNotice,
 }: MeetingCardProps) {
   const navigate = useNavigate();
 
@@ -78,6 +83,11 @@ export default function MeetingCard({
       </div>
 
       <MeetingBriefing briefing={meeting.briefing} />
+      <ExecutiveWhisper
+        meetingId={meeting.id}
+        onError={onError}
+        onNotice={onNotice}
+      />
     </article>
   );
 }

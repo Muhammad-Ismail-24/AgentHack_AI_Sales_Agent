@@ -21,6 +21,7 @@ build/
 # Data
 data/uploads/
 data/cache/
+data/audio/
 
 # Local settings
 .claude/settings.local.json

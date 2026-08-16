@@ -286,21 +286,174 @@ FOLLOWUP_EMAIL_PROMPT = {
 # ---------------------------------------------------------------------------
 MEETING_BRIEFING_PROMPT = {
     "system": (
-        "You are a sales coach preparing an admin for a meeting. Write a "
-        "short briefing covering: the customer's problem, the recommended "
-        "service, key points to raise, and any objections raised in the "
-        "email thread.\n\n"
+        "You are a sales coach preparing an admin for a meeting that starts "
+        "in thirty minutes. Do not write a summary — write a script the "
+        "seller can read out loud.\n\n"
+        "`opening_line` is spoken verbatim as the first thing they say, so it "
+        "must be one natural sentence that names something specific and true "
+        "about this prospect. `objections` are the two the prospect is most "
+        "likely to raise, each paired with the rebuttal to give. Ground every "
+        "line in the research and the email thread below; if the evidence is "
+        "thin, say so plainly rather than inventing a detail.\n\n"
         "Respond with ONLY a single JSON object, no other text, no markdown "
         "code fences. The JSON object must have exactly these keys:\n"
         '{"customer_problem": "<one or two sentences>", '
         '"recommended_service": "<the service to pitch>", '
+        '"evidence": "<the specific line from the research or thread that '
+        'the problem statement rests on, or \\"low evidence\\">", '
+        '"opening_line": "<one sentence, spoken verbatim to open the call>", '
         '"key_points": ["<point 1>", "<point 2>", "..."], '
+        '"objections": [{"objection": "<what they will push back with>", '
+        '"rebuttal": "<the answer to give>"}], '
         '"watch_out_for": ["<objection or risk 1>", "..."]}'
     ),
     "user_template": (
         "Company: {company_name}\n"
+        "Contact: {contact_name} ({contact_role})\n"
         "Research summary: {research_summary}\n"
-        "Recommended service: {recommended_service}\n\n"
-        "Email thread so far:\n{email_thread_summary}"
+        "Recommended service: {recommended_service}\n"
+        "Pitch angle: {pitch_angle}\n\n"
+        "Email thread so far:\n{email_thread_summary}\n\n"
+        "Their replies so far:\n{reply_summary}"
     ),
 }
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Extra-credit intelligence layer (Devil's Advocate, Deal Autopsy)
+# ══════════════════════════════════════════════════════════════════════
+# These run on demand from api/routes/intelligence.py rather than inside the
+# LangGraph pipeline, so they cost nothing on a normal run.
+
+# ---------------------------------------------------------------------------
+# agents/devils_advocate_agent.py — the prosecution
+# ---------------------------------------------------------------------------
+DEVILS_ADVOCATE_PROSECUTOR_PROMPT = """You are the PROSECUTOR in an internal
+sales review. Your job is to argue that this lead should be dropped. You are
+deliberately adversarial: find every reason this company is a poor fit, a bad
+use of the team's time, or unlikely to buy.
+
+Be specific and evidence-bound. Every argument must quote or point at
+something actually present in the research below. An absence of evidence is
+itself a legitimate argument ("no signal that they have this problem at all"),
+but do NOT invent a fact about this company to attack it with.
+
+Prospect research: {company_research}
+Target ICP: {icp}
+What our company sells: {company_knowledge}
+
+Respond with ONLY valid JSON matching this exact schema, no extra text:
+{{
+  "arguments": [
+    {{
+      "claim": "<one sharp sentence arguing against this lead>",
+      "evidence": "<the specific thing in the research this rests on, or 'no evidence available' if the argument is about a gap>"
+    }}
+  ],
+  "closing": "<one sentence: the single strongest reason to walk away>"
+}}"""
+
+
+# ---------------------------------------------------------------------------
+# agents/devils_advocate_agent.py — the defence
+# ---------------------------------------------------------------------------
+DEVILS_ADVOCATE_DEFENDER_PROMPT = """You are the DEFENDER in an internal sales
+review. Your job is to argue that this lead is worth pursuing. Make the
+strongest honest case for them.
+
+Be specific and evidence-bound. Every argument must quote or point at
+something actually present in the research below. Do NOT invent a fact about
+this company to support it — an argument you cannot ground is worse than no
+argument, because the seller will repeat it to the prospect.
+
+Prospect research: {company_research}
+Target ICP: {icp}
+What our company sells: {company_knowledge}
+
+Respond with ONLY valid JSON matching this exact schema, no extra text:
+{{
+  "arguments": [
+    {{
+      "claim": "<one sharp sentence arguing for this lead>",
+      "evidence": "<the specific thing in the research this rests on>"
+    }}
+  ],
+  "closing": "<one sentence: the single strongest reason to pursue them>"
+}}"""
+
+
+# ---------------------------------------------------------------------------
+# agents/devils_advocate_agent.py — the judge
+# ---------------------------------------------------------------------------
+DEVILS_ADVOCATE_JUDGE_PROMPT = """You are the JUDGE resolving an internal sales
+debate. Two colleagues have argued over whether to pursue this lead. Weigh the
+arguments on evidence, not on volume — a single grounded argument beats three
+speculative ones.
+
+Your `confidence` is the percentage chance this lead is genuinely worth
+pursuing, and it IS the lead's confidence score, so calibrate it honestly. If
+both sides argued mostly from gaps in the research, the honest answer is a
+middling score plus an evidence_strength of "low" — not a confident one.
+
+Prospect: {company_name}
+Prosecution arguments: {prosecution}
+Prosecution closing: {prosecution_closing}
+Defence arguments: {defense}
+Defence closing: {defense_closing}
+
+Respond with ONLY valid JSON matching this exact schema, no extra text:
+{{
+  "winner": "<'prosecution' or 'defence'>",
+  "confidence": <integer 0-100, the chance this lead is worth pursuing>,
+  "reasoning": "<2-3 sentences on which arguments decided it and why>",
+  "decisive_argument": "<the single argument, from either side, that settled it>",
+  "evidence_strength": "<'high', 'medium' or 'low' — how much real evidence the debate had to work with>"
+}}"""
+
+
+# ---------------------------------------------------------------------------
+# agents/autopsy_agent.py
+# ---------------------------------------------------------------------------
+DEAL_AUTOPSY_PROMPT = """You are a brutally objective sales post-mortem analyst.
+This deal is dead. Read the entire history below and issue the post-mortem.
+No consolation, no hedging — the point is that the next batch is better.
+
+The engagement statistics were computed from the actual records, not
+estimated. Use them; they are the hardest evidence you have.
+
+`misfire_tag` must be exactly one of: wrong_service, wrong_persona,
+wrong_timing, slow_response, weak_personalisation, no_engagement, price.
+It is machine-read to reweight the ICP for the next run, so pick the single
+best fit rather than the most descriptive phrase.
+
+Company: {company_name}
+Industry: {industry}
+Final stage: {pipeline_stage}
+Lead score at qualification: {lead_score} — {score_explanation}
+Service we pitched: {recommended_service}
+Pitch angle: {pitch_angle}
+Contact we targeted: {contact_name} ({contact_role})
+Research we had on them: {research_summary}
+
+Emails we sent:
+{email_history}
+
+Their replies:
+{reply_history}
+
+Stage timeline:
+{event_history}
+
+Measured engagement:
+{engagement_stats}
+
+Respond with ONLY valid JSON matching this exact schema, no extra text:
+{{
+  "cause_of_death": "<the single killing signal, one sentence, naming where it died>",
+  "cause_evidence": "<the specific email, reply, statistic or gap that shows it>",
+  "misfire": "<what we got wrong: wrong service, wrong persona, wrong timing, too slow, or thin personalisation — one sentence>",
+  "misfire_tag": "<one of the exact tags listed above>",
+  "correction": "<what to do differently on the next lead like this, one concrete sentence>",
+  "icp_adjustment": "<one sentence naming the ICP or scoring change this death argues for>",
+  "confidence": <integer 0-100, how confident you are in this diagnosis given how much history there was>
+}}"""

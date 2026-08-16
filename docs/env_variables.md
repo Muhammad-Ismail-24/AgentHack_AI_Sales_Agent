@@ -156,6 +156,27 @@ Green API path also sends that contact a short meeting-confirmation message
 (no internal briefing content — that stays admin-only) when a meeting is
 created. Nothing extra to configure; it activates automatically per-contact.
 
+## Text-to-speech — the drive-time audio briefing
+
+| Key | Required for | Where to get it |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | rendering the pre-call script as a WhatsApp voice note | elevenlabs.io → Profile → API key |
+| `ELEVENLABS_VOICE_ID` | optional | defaults to `21m00Tcm4TlvDq8ikWAM` ("Rachel"), a stock voice on every account |
+| `ELEVENLABS_MODEL_ID` | optional | defaults to `eleven_turbo_v2_5` — the cheapest model that still sounds natural |
+| `TTS_MAX_CHARS` | optional | defaults to `1200`, roughly a 60-second clip |
+
+**This is entirely optional.** Without a key the Executive Whisperer still
+writes the pre-call script and still delivers it as text over WhatsApp; only
+the voice note is skipped. `POST /intelligence/meetings/{id}/whisper/audio`
+answers 200 with a null `audio_url` and a message saying why, rather than
+failing.
+
+Generated clips are written to `data/audio/` and served read-only at `/audio`,
+so the dashboard can play one from an `<audio>` tag. Only the Green API
+transport can upload the file to WhatsApp — Twilio needs publicly reachable
+media, which a local demo does not have, so it reports the audio step as not
+sent rather than pretending.
+
 ### Twilio — legacy fallback
 
 `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_WHATSAPP_FROM` are

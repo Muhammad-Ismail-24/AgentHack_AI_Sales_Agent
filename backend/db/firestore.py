@@ -27,6 +27,8 @@ REPLIES = "replies"
 MEETINGS = "meetings"
 FOLLOWUPS = "followups"
 PIPELINE_EVENTS = "pipeline_events"
+VERDICTS = "verdicts"
+AUTOPSIES = "autopsies"
 
 ALL_COLLECTIONS = [
     LEADS,
@@ -36,6 +38,8 @@ ALL_COLLECTIONS = [
     MEETINGS,
     FOLLOWUPS,
     PIPELINE_EVENTS,
+    VERDICTS,
+    AUTOPSIES,
 ]
 
 _client: Any = None

@@ -28,6 +28,7 @@ mock-mode log output on Windows.
 """
 
 import re
+from pathlib import Path
 
 import httpx
 
@@ -157,20 +158,116 @@ class WhatsAppNotifier:
         )
         return await self._send(self.admin_number, message)
 
-    async def send_pre_meeting_briefing(self, company_name: str, briefing: dict) -> bool:
+    async def send_pre_meeting_briefing(
+        self,
+        company_name: str,
+        briefing: dict,
+        meeting_link: str | None = None,
+    ) -> bool:
+        """The T-30min admin message — a script to read, not a summary.
+
+        `opening_line` and `objections` come from the Executive Whisperer
+        upgrade in meeting_manager.build_whisper(); a briefing written before
+        that (or by the keyless mock) simply omits those sections rather than
+        rendering empty headings.
+        """
         key_points = briefing.get("key_points") or []
         watch_out_for = briefing.get("watch_out_for") or []
-        key_points_str = "\n".join(f"- {point}" for point in key_points) or "- (none noted)"
-        watch_out_str = "\n".join(f"- {item}" for item in watch_out_for) or "- (none noted)"
+        objections = [
+            obj
+            for obj in (briefing.get("objections") or [])
+            if isinstance(obj, dict) and obj.get("objection")
+        ]
 
-        message = (
-            f"⏰ Meeting in 30 minutes — {company_name}\n"
-            f"Problem: {briefing.get('customer_problem', 'n/a')}\n"
-            f"Pitch: {briefing.get('recommended_service', 'n/a')}\n"
-            f"Key points:\n{key_points_str}\n"
-            f"Watch out:\n{watch_out_str}"
+        lines = [
+            f"⏰ Meeting in 30 minutes — {company_name}",
+            f"Problem: {briefing.get('customer_problem', 'n/a')}",
+            f"Pitch: {briefing.get('recommended_service', 'n/a')}",
+        ]
+
+        if briefing.get("opening_line"):
+            lines.append(f"\n🎤 Open with:\n\"{briefing['opening_line']}\"")
+
+        if objections:
+            rendered = "\n".join(
+                f"- They say: {obj['objection']}\n  You say: "
+                f"{obj.get('rebuttal') or '(no rebuttal drafted)'}"
+                for obj in objections
+            )
+            lines.append(f"\n🛡 Objections:\n{rendered}")
+
+        lines.append(
+            "\nKey points:\n"
+            + ("\n".join(f"- {point}" for point in key_points) or "- (none noted)")
         )
-        return await self._send(self.admin_number, message)
+        lines.append(
+            "Watch out:\n"
+            + ("\n".join(f"- {item}" for item in watch_out_for) or "- (none noted)")
+        )
+
+        if meeting_link:
+            lines.append(f"\nLink: {meeting_link}")
+
+        return await self._send(self.admin_number, "\n".join(lines))
+
+    async def send_audio_briefing(self, company_name: str, audio_path: str) -> bool:
+        """Send the drive-time briefing to the admin as a WhatsApp voice note.
+
+        Only Green API supports a file upload here; on Twilio the media has to
+        be publicly reachable by URL first, which a localhost demo is not, so
+        that transport reports False rather than pretending. Mock mode logs
+        the path so a credential-free demo still shows the step happening.
+        """
+        caption = f"🎧 Drive-time briefing — {company_name}"
+
+        if self.transport == "green_api":
+            if not self.admin_number:
+                _log.warning("Green API audio send skipped - no admin number configured")
+                return False
+            return await self._send_green_api_file(self.admin_number, audio_path, caption)
+
+        if self.transport == "twilio":
+            _log.warning(
+                "Twilio transport cannot upload a local file - skipping the audio "
+                "briefing (the text briefing was still sent)"
+            )
+            return False
+
+        _log.info("MOCK WhatsApp audio send to %s: %s", self.admin_number or "(none)", audio_path)
+        return True
+
+    async def _send_green_api_file(
+        self, to_number: str, file_path: str, caption: str
+    ) -> bool:
+        """POST an audio file to Green API's sendFileByUpload endpoint."""
+        url = (
+            f"{self.green_api_url}/waInstance{self.id_instance}"
+            f"/sendFileByUpload/{self.token_instance}"
+        )
+        path = Path(file_path)
+        try:
+            audio = path.read_bytes()
+        except OSError as exc:
+            _log.error("Could not read audio briefing %s: %s", file_path, exc)
+            return False
+
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    url,
+                    data={
+                        "chatId": _to_chat_id(to_number),
+                        "caption": caption,
+                        "fileName": path.name,
+                    },
+                    files={"file": (path.name, audio, "audio/mpeg")},
+                )
+                response.raise_for_status()
+            _log.info("WhatsApp audio briefing sent via Green API to %s", to_number)
+            return True
+        except Exception as exc:  # noqa: BLE001 — comms layer must not crash the pipeline
+            _log.error("Green API file send to %s failed: %s", to_number, exc)
+            return False
 
     # -- company-facing (extra credit) ---------------------------------
     async def send_company_meeting_confirmation(

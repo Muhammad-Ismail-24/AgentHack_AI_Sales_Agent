@@ -9,6 +9,8 @@
 import axios, { AxiosError } from 'axios';
 
 import type {
+  Autopsy,
+  AutopsyInsights,
   CompanyUploadResult,
   Email,
   ICPInput,
@@ -20,6 +22,9 @@ import type {
   MessageResult,
   PipelineStage,
   PipelineStatus,
+  Verdict,
+  Whisper,
+  WhisperAudio,
 } from './types';
 
 const baseURL = import.meta.env.VITE_API_URL
@@ -48,6 +53,22 @@ export function describeError(error: unknown): string {
     return 'Could not reach the backend. Check that it is running on port 8000.';
   }
   return error instanceof Error ? error.message : 'Something went wrong.';
+}
+
+/**
+ * Resolve to null on a 404 instead of throwing.
+ *
+ * The intelligence endpoints 404 when a debate, autopsy or script has simply
+ * never been generated for that record — a normal empty state, not a failure.
+ * Any other error still propagates so the caller can toast it.
+ */
+async function nullOn404<T>(request: Promise<{ data: T }>): Promise<T | null> {
+  try {
+    return (await request).data;
+  } catch (error) {
+    if ((error as AxiosError)?.response?.status === 404) return null;
+    throw error;
+  }
 }
 
 // ── Company / onboarding ─────────────────────────────────────────────
@@ -184,6 +205,82 @@ export async function createMeeting(
     { timeout: 60_000 },
   );
   return data;
+}
+
+// ── Intelligence: Devil's Advocate ───────────────────────────────────
+// A debate costs three LLM calls, so it only ever runs from an explicit
+// click — hence a POST to run it and a separate GET to read the last one.
+
+export async function runDevilsAdvocate(leadId: string): Promise<Verdict> {
+  const { data } = await client.post<Verdict>(
+    `/intelligence/leads/${leadId}/devils-advocate`,
+    undefined,
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function getDevilsAdvocate(leadId: string): Promise<Verdict | null> {
+  return nullOn404(
+    client.get<Verdict>(`/intelligence/leads/${leadId}/devils-advocate`),
+  );
+}
+
+// ── Intelligence: Deal Autopsy ───────────────────────────────────────
+
+export async function runAutopsy(leadId: string): Promise<Autopsy> {
+  const { data } = await client.post<Autopsy>(
+    `/intelligence/leads/${leadId}/autopsy`,
+    undefined,
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function getAutopsy(leadId: string): Promise<Autopsy | null> {
+  return nullOn404(client.get<Autopsy>(`/intelligence/leads/${leadId}/autopsy`));
+}
+
+export async function getAutopsyInsights(): Promise<AutopsyInsights> {
+  const { data } = await client.get<AutopsyInsights>(
+    '/intelligence/autopsies/insights',
+  );
+  return data;
+}
+
+// ── Intelligence: Executive Whisperer ────────────────────────────────
+
+export async function buildWhisper(meetingId: string): Promise<Whisper> {
+  const { data } = await client.post<Whisper>(
+    `/intelligence/meetings/${meetingId}/whisper`,
+    undefined,
+    { timeout: 120_000 },
+  );
+  return data;
+}
+
+export async function getWhisper(meetingId: string): Promise<Whisper | null> {
+  return nullOn404(
+    client.get<Whisper>(`/intelligence/meetings/${meetingId}/whisper`),
+  );
+}
+
+export async function buildWhisperAudio(meetingId: string): Promise<WhisperAudio> {
+  const { data } = await client.post<WhisperAudio>(
+    `/intelligence/meetings/${meetingId}/whisper/audio`,
+    undefined,
+    { timeout: 180_000 },
+  );
+  return data;
+}
+
+/**
+ * Turn a backend-relative media path (`/audio/x.mp3`) into one the browser can
+ * load. In dev that means going back through the `/api` proxy, which strips
+ * the prefix again on the way to the backend.
+ */
+export function resolveMediaUrl(path: string): string {
+  return `${baseURL}${path}`;
 }
 
 // ── Meta ─────────────────────────────────────────────────────────────

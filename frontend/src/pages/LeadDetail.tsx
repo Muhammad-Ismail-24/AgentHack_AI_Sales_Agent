@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import PageWrapper from '../components/layout/PageWrapper';
 import TopBar from '../components/layout/TopBar';
 import ContactCard from '../components/leads/ContactCard';
+import DealAutopsy from '../components/leads/DealAutopsy';
+import DevilsAdvocate from '../components/leads/DevilsAdvocate';
 import EmailPreview from '../components/leads/EmailPreview';
 import ResearchSummary from '../components/leads/ResearchSummary';
 import ScoreBadge from '../components/leads/ScoreBadge';
@@ -14,6 +16,7 @@ import Toast from '../components/ui/Toast';
 import { usePipelineContext } from '../hooks/usePipeline';
 import { useToast } from '../hooks/useToast';
 import { describeError, getLeadDetail, sendEmail } from '../lib/api';
+import { REJECTED_STAGES } from '../lib/types';
 import type { Email, LeadDetail as LeadDetailData } from '../lib/types';
 import { formatDate, stageToColor } from '../lib/utils';
 
@@ -94,6 +97,7 @@ export default function LeadDetail() {
   }
 
   const { lead, contacts, emails, replies, meetings, events } = detail;
+  const isDead = (REJECTED_STAGES as readonly string[]).includes(lead.pipeline_stage);
 
   return (
     <>
@@ -113,6 +117,18 @@ export default function LeadDetail() {
           {/* Left — 60% */}
           <div className="space-y-6 lg:col-span-3">
             <ResearchSummary lead={lead} />
+
+            {isDead ? (
+              <DealAutopsy
+                leadId={lead.id}
+                onError={(message) => showToast(message, 'error')}
+              />
+            ) : (
+              <DevilsAdvocate
+                leadId={lead.id}
+                onError={(message) => showToast(message, 'error')}
+              />
+            )}
 
             <section>
               <h2 className="mb-3 text-sm font-semibold text-white">

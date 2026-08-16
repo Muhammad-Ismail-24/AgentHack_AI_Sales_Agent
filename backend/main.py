@@ -12,6 +12,7 @@ from importlib import import_module
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from api.schemas import HealthResponse
 from config.settings import settings
@@ -31,6 +32,7 @@ ROUTERS = [
     ("api.routes.emails", "router", "emails", "/emails"),
     ("api.routes.meetings", "router", "meetings", "/meetings"),
     ("api.routes.webhook", "router", "webhook", "/webhook"),
+    ("api.routes.intelligence", "router", "intelligence", None),
     # Registered last: only fills gaps the routers above do not cover.
     ("api.routes.dashboard", "router", "dashboard", None),
     ("api.routes.admin", "router", "admin", None),
@@ -188,6 +190,13 @@ app.add_middleware(
 
 for module_path, attr, label, prefix in ROUTERS:
     _register(app, module_path, attr, label, prefix)
+
+# Generated drive-time audio briefings, served read-only so the dashboard can
+# play a clip straight from an <audio> tag. Created here rather than in
+# lifespan because StaticFiles checks the directory exists at mount time,
+# which is import time.
+settings.AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/audio", StaticFiles(directory=settings.AUDIO_DIR), name="audio")
 
 
 @app.head("/health", tags=["meta"])

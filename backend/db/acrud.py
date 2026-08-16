@@ -257,6 +257,30 @@ async def get_events_for_lead(lead_id: str) -> list[dict]:
     return await _run(crud.get_events_for_lead, lead_id)
 
 
+# ── Devil's Advocate verdicts ────────────────────────────────────────
+
+async def create_verdict(lead_id: str, debate: dict[str, Any]) -> dict:
+    return await _run(crud.create_verdict, lead_id, debate)
+
+
+async def get_latest_verdict(lead_id: str) -> dict | None:
+    return await _run(crud.get_latest_verdict, lead_id)
+
+
+# ── Deal autopsies ───────────────────────────────────────────────────
+
+async def create_autopsy(lead_id: str, findings: dict[str, Any]) -> dict:
+    return await _run(crud.create_autopsy, lead_id, findings)
+
+
+async def get_latest_autopsy(lead_id: str) -> dict | None:
+    return await _run(crud.get_latest_autopsy, lead_id)
+
+
+async def get_all_autopsies() -> list[dict]:
+    return await _run(crud.get_all_autopsies)
+
+
 # ── Maintenance ──────────────────────────────────────────────────────
 
 async def clear_all() -> None:

@@ -115,6 +115,55 @@ async def build_icp(session_id: str, raw_icp: dict) -> dict | None:
     return icp
 
 
+async def run_devils_advocate(lead: dict) -> dict:
+    """Hold the Prosecutor/Defender/Judge debate over one lead.
+
+    On-demand extra, not a graph node — the routes reach it through
+    api/orchestrator_bridge.py like everything else here.
+    """
+    from agents import devils_advocate_agent
+
+    return await devils_advocate_agent.run(lead)
+
+
+async def run_autopsy(
+    lead: dict,
+    contacts: list[dict],
+    emails: list[dict],
+    replies: list[dict],
+    events: list[dict],
+) -> dict:
+    """Post-mortem one dead lead from its full communication history."""
+    from agents import autopsy_agent
+
+    return await autopsy_agent.run(lead, contacts, emails, replies, events)
+
+
+def summarise_autopsies(autopsies: list[dict]) -> dict:
+    """Roll every post-mortem up into the ICP adjustments they argue for."""
+    from agents import autopsy_agent
+
+    return autopsy_agent.summarise(autopsies)
+
+
+async def build_meeting_whisper(meeting_id: str) -> dict | None:
+    """Write the pre-call script for a meeting.
+
+    Imported lazily and only here: agents must never import comms directly,
+    so the orchestrator is the one place allowed to bridge the two.
+    """
+    from comms.meeting_manager import MeetingManager
+
+    return await MeetingManager().build_whisper(meeting_id)
+
+
+async def deliver_whisper_audio(meeting_id: str) -> dict:
+    """Render the whisper as a voice note and WhatsApp it to the admin."""
+    from comms.meeting_manager import MeetingManager
+
+    return await MeetingManager().deliver_audio_briefing(meeting_id)
+
+
 async def run_pipeline(
     session_id: str,
     raw_input: str,

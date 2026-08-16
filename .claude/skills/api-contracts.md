@@ -137,6 +137,42 @@ advance the lead's stage.
 
 ---
 
+## Intelligence layer · `api/routes/intelligence.py`
+
+Extras that sit beside the pipeline, not inside it. Every POST is triggered by
+a human click — the debate and the autopsy each spend LLM calls, and the audio
+one spends TTS credit, so none of them runs automatically.
+
+| Method | Path | Request | Response |
+|---|---|---|---|
+| POST | `/intelligence/leads/{id}/devils-advocate` | — | `VerdictResponse` |
+| GET | `/intelligence/leads/{id}/devils-advocate` | — | `VerdictResponse` |
+| POST | `/intelligence/leads/{id}/autopsy` | — | `AutopsyResponse` |
+| GET | `/intelligence/leads/{id}/autopsy` | — | `AutopsyResponse` |
+| GET | `/intelligence/autopsies/insights` | — | `AutopsyInsightsResponse` |
+| POST | `/intelligence/meetings/{id}/whisper` | — | `WhisperResponse` |
+| GET | `/intelligence/meetings/{id}/whisper` | — | `WhisperResponse` |
+| POST | `/intelligence/meetings/{id}/whisper/audio` | — | `WhisperAudioResponse` |
+
+Status codes worth knowing:
+
+- **404 on a GET** means the debate/autopsy/script has never been generated —
+  a normal empty state, which `api.ts` turns into `null` rather than a throw.
+- **409 on `POST .../autopsy`** means the lead is still active. An autopsy only
+  runs on a lead in a rejected stage.
+- **503 on any POST** means `agents/orchestrator.py` could not be imported.
+  These endpoints have no useful fallback, so they say so rather than
+  fabricating a verdict.
+- **200 with `audio_url: null`** from the audio endpoint is the no-TTS-key
+  outcome, not a failure — `message` explains it, and the text script is
+  unaffected.
+
+Generated audio is served read-only from `/audio` (mounted in `main.py` from
+`settings.AUDIO_DIR`). The frontend resolves those paths through
+`resolveMediaUrl()` so they go back through the dev proxy.
+
+---
+
 ## Conventions
 
 - All bodies are JSON except `/company/upload`, which is multipart.

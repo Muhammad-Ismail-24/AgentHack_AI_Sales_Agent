@@ -84,6 +84,30 @@ Import these from `db/models.py` (`PIPELINE_STAGES`, `ACTIVE_STAGES`,
 `REJECTED_STAGES`, `EMAIL_STATUSES`, `MEETING_STATUSES`, `FOLLOWUP_STATUSES`,
 `CLASSIFICATIONS`) rather than retyping the strings.
 
+## Intelligence collections
+
+Written by the on-demand agents, never by the pipeline. Both key on `lead_id`
+and are **append-only**: re-running leaves the earlier document in place as
+history, and only the newest is ever read back
+(`get_latest_verdict` / `get_latest_autopsy`).
+
+**verdicts** — one resolved Devil's Advocate debate.
+`prosecution` and `defense` are lists of `{claim, evidence}`; `confidence` is
+the lead's confidence score; `evidence_strength` is `high`/`medium`/`low`,
+capped in the agent against how much research the lead actually had.
+
+**autopsies** — one post-mortem on a dead lead.
+`cause_of_death`, `cause_evidence`, `misfire`, `misfire_tag`, `correction`,
+`icp_adjustment`, `confidence`, plus `engagement_stats` — reply latency each
+way, thread length, days since last touch — computed in Python from the
+records rather than asked of the model.
+
+`misfire_tag` is one of `MISFIRE_TAGS` in `db/models.py`
+(`wrong_service`, `wrong_persona`, `wrong_timing`, `slow_response`,
+`weak_personalisation`, `no_engagement`, `price`). It is machine-read by the
+insights rollup, so an unrecognised value is coerced rather than stored — keep
+the list and the autopsy prompt in step.
+
 ## Behaviour worth knowing
 
 - `crud.update_lead_stage()` writes a `pipeline_events` document automatically.
@@ -96,8 +120,9 @@ Import these from `db/models.py` (`PIPELINE_STAGES`, `ACTIVE_STAGES`,
   cross-collection parts are evaluated in Python — Firestore has no NOT-IN
   across collections.
 - **Deletes do not cascade.** `crud.delete_lead()` removes contacts, emails,
-  replies, meetings, follow-ups, and events explicitly. Anything that deletes
-  a parent must do the same.
+  replies, meetings, follow-ups, events, verdicts, and autopsies explicitly.
+  Anything that deletes a parent must do the same — a new `lead_id` collection
+  means a new entry in that loop.
 - `crud._where()` supports single-field equality only. Compound filtering is
   done in Python to avoid needing composite indexes.
 
