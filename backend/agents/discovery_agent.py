@@ -20,6 +20,12 @@ _DIRECTORY_DOMAINS = frozenset(
     {
         "linkedin.com", "facebook.com", "instagram.com", "twitter.com", "x.com",
         "youtube.com", "tiktok.com", "reddit.com", "quora.com", "medium.com",
+        # Click-to-chat links. A wa.me URL looks like a company in search
+        # results but carries no site to scrape and no domain to enrich —
+        # one produced a lead whose "domain" was literally wa.me, so Hunter
+        # had nothing to look up and the lead went out contactless.
+        # (matched on the registrable domain, so api.whatsapp.com -> whatsapp.com)
+        "wa.me", "whatsapp.com", "t.me", "m.me",
         "wikipedia.org", "forbes.com", "bloomberg.com", "reuters.com",
         "tradingview.com", "statista.com", "glassdoor.com", "indeed.com",
         "crunchbase.com", "zoominfo.com", "owler.com", "dnb.com", "clutch.co",

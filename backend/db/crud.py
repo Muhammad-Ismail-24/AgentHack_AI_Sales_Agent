@@ -22,6 +22,7 @@ from typing import Any, Optional
 
 from google.cloud.firestore_v1.base_query import FieldFilter
 
+from config.settings import settings
 from db import firestore as fs
 from db.models import (
     CONTACT_FIELDS,
@@ -250,6 +251,48 @@ def delete_lead(lead_id: str) -> bool:
     return True
 
 
+# PIPELINE_TO_LEAD maps the agent state's key names onto LEAD_FIELDS.
+# The agents and this schema grew up apart: combined_processing_agent writes
+# `score`/`explanation` and discovery writes `url`, while a lead document
+# stores `lead_score`/`score_explanation`/`website`. Without this translation
+# the filter in upsert_leads_from_pipeline drops every one of them, and a run
+# that qualified leads and wrote emails still lands in Firestore as
+# "Discovered, Unscored, no contacts" — which is exactly how it behaved.
+PIPELINE_TO_LEAD = {
+    "score": "lead_score",
+    "explanation": "score_explanation",
+    "url": "website",
+    "why_it_fits": "pitch_angle",
+}
+
+
+def _lead_fields_from_pipeline(raw: dict[str, Any]) -> dict[str, Any]:
+    """Translate one pipeline lead dict into LEAD_FIELDS-shaped values."""
+    fields = {k: v for k, v in raw.items() if k in LEAD_FIELDS}
+    for src, dest in PIPELINE_TO_LEAD.items():
+        if fields.get(dest) in (None, "") and raw.get(src) not in (None, ""):
+            fields[dest] = raw[src]
+    return fields
+
+
+def _stage_for(raw: dict[str, Any], fields: dict[str, Any]) -> str | None:
+    """Where a lead belongs on the board, given what the pipeline learned.
+
+    Only inferred when the pipeline did not set a stage itself. A scored lead
+    has been through qualification, so leaving it at the default "Discovered"
+    would show every finished run as an untouched board.
+    """
+    if raw.get("pipeline_stage"):
+        return raw["pipeline_stage"]
+
+    score = fields.get("lead_score")
+    if score is None:
+        return None
+    if score < settings.MIN_QUALIFICATION_SCORE:
+        return "Not Qualified"
+    return "Qualified"
+
+
 def upsert_leads_from_pipeline(
     leads_list: list[dict[str, Any]], session_id: str
 ) -> list[dict]:
@@ -257,7 +300,8 @@ def upsert_leads_from_pipeline(
 
     Dedupes on company_name within the session, so calling this after each
     graph node updates leads in place rather than duplicating them. A
-    "contacts" list on a lead dict is upserted by email.
+    "contacts" list on a lead dict is upserted by email, and the single
+    `primary_contact` the agents produce is treated as one.
     """
     saved: list[dict] = []
     seen_ids: set[str] = set()
@@ -268,11 +312,14 @@ def upsert_leads_from_pipeline(
             log.warning("skipping lead with no company_name")
             continue
 
-        fields = {k: v for k, v in raw.items() if k in LEAD_FIELDS}
+        fields = _lead_fields_from_pipeline(raw)
         fields["company_name"] = name
         fields["session_id"] = session_id
         if "lead_score" in fields:
             fields["lead_score"] = _clamp_score(fields["lead_score"])
+        stage = _stage_for(raw, fields)
+        if stage:
+            fields["pipeline_stage"] = stage
 
         existing = get_lead_by_company(name, session_id)
 
@@ -291,8 +338,27 @@ def upsert_leads_from_pipeline(
             if new_stage and new_stage != doc.get("pipeline_stage"):
                 doc = update_lead_stage(doc["id"], new_stage, "Advanced by pipeline") or doc
 
-        for contact in raw.get("contacts") or []:
-            create_contact(contact, doc["id"])
+        # The agents attach one chosen decision maker as `primary_contact`;
+        # older callers pass a `contacts` list. Accept both.
+        contacts = list(raw.get("contacts") or [])
+        primary = raw.get("primary_contact")
+        if isinstance(primary, dict) and primary.get("email"):
+            contacts.append({**primary, "is_primary": True})
+
+        contact_id = None
+        for contact in contacts:
+            saved_contact = create_contact(contact, doc["id"])
+            if contact_id is None and saved_contact:
+                contact_id = saved_contact.get("id")
+
+        # Persist the drafted outreach as a draft email. Without this the
+        # subject/body the pipeline wrote exist only in the run's state, so
+        # the UI has nothing to show and nothing to send — which is why a
+        # completed run looked like it had produced no outreach at all.
+        subject = (raw.get("subject") or "").strip()
+        body = (raw.get("body") or "").strip()
+        if subject and body and not get_emails_for_lead(doc["id"]):
+            create_email(doc["id"], contact_id, subject, body, "draft")
 
         if doc["id"] not in seen_ids:
             seen_ids.add(doc["id"])
