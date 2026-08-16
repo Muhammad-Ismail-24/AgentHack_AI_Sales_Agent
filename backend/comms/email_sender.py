@@ -129,6 +129,25 @@ class EmailSender:
     ) -> dict:
         result: dict | None = None
 
+        intended_for = to_email
+        if settings.TEST_RECIPIENT_EMAIL:
+            to_email = settings.TEST_RECIPIENT_EMAIL
+            # Banner in the body, never the subject: EmailReader matches a
+            # reply back to its original email by subject, so editing it
+            # would strand the reply and break the round trip this mode
+            # exists to rehearse.
+            body = (
+                f"[TEST MODE] This email was addressed to {intended_for} "
+                f"and redirected to you.\n"
+                f"Reply to it as the prospect would — the reply is matched "
+                f"back by subject line.\n"
+                f"{'-' * 60}\n\n{body}"
+            )
+            _log.warning(
+                "TEST_RECIPIENT_EMAIL set — redirecting outreach for %s to %s",
+                intended_for, to_email,
+            )
+
         if self._smtp:
             try:
                 # smtplib is synchronous — keep it off the event loop shared

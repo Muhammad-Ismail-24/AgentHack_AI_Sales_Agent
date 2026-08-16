@@ -124,6 +124,14 @@ class Settings(BaseSettings):
     # Resend is kept as an optional alternative sender.
     RESEND_API_KEY: str = ""
     SENDER_EMAIL: str = ""
+    # When set, every outreach email goes here instead of the prospect, with
+    # a banner naming who it would have reached. For rehearsing the full
+    # loop — send, reply, classify, book — without cold-emailing anyone, and
+    # for Resend accounts with no verified domain, which may only deliver to
+    # the account holder. Leave blank in real use. The subject is left
+    # untouched on purpose: EmailReader matches a reply to its original by
+    # subject, so changing it would break the reply half of the round trip.
+    TEST_RECIPIENT_EMAIL: str = ""
 
     # ── Meetings ─────────────────────────────────────────────────────
     # CAL_API_KEY is the name in the env file; CALCOM_API_KEY is the older

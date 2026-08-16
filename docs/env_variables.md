@@ -83,11 +83,26 @@ break validation, but nothing reads it — persistence is Firestore.
 | `SMTP_USER` | — | the full Gmail address |
 | `SMTP_PASSWORD` | — | a Google **app password**, not the account password (myaccount.google.com → Security → App passwords) |
 | `SENDER_EMAIL` | the From address | defaults to `SMTP_USER` when blank |
-| `RESEND_API_KEY` | optional alternative sender | only used when SMTP is not configured. Resend's free tier will only deliver to your own verified address, which is why SMTP is preferred. |
+| `RESEND_API_KEY` | alternative sender, over HTTPS | SMTP is tried first, but many managed hosts (Render included) firewall outbound ports 25/465/587, and a send there fails with `[Errno 101] Network is unreachable`. Resend is used automatically when that happens. Its free tier only delivers to your own verified address until you verify a domain. |
+| `TEST_RECIPIENT_EMAIL` | redirect all outreach to one inbox | see below. Blank in real use. |
 
 With neither configured, `EmailSender` runs in mock mode: it logs the payload,
 records the email in Firestore, and reports success — so the demo flows work
 end to end without sending real mail.
+
+### Testing outreach without emailing anyone
+
+`TEST_RECIPIENT_EMAIL` redirects **every** outgoing email — first-touch
+outreach, follow-ups and meeting links — to that one address, with a banner
+naming who it would have reached. Use it to rehearse the whole loop (send →
+reply → classify → book) against your own inbox, and for Resend accounts with
+no verified domain, which can only deliver to the account holder.
+
+The subject line is deliberately left untouched: `EmailReader` matches an
+inbound reply to its original email by subject, so rewriting it would strand
+the reply. Reply normally (keeping `Re: …`) and the reply is matched,
+classified, and — if it reads as a meeting request — answered with a booking
+link. Leave the variable blank for real outreach.
 
 ## Meetings
 
