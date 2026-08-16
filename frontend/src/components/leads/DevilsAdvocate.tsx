@@ -35,28 +35,28 @@ interface SideProps {
 function Side({ title, accent, args, closing, won }: SideProps) {
   return (
     <div
-      className={`rounded-lg border bg-slate-900/60 p-4 ${
-        won ? accent : 'border-slate-700 opacity-70'
+      className={`rounded-lg border bg-bark-900/60 p-4 ${
+        won ? accent : 'border-bark-700 opacity-70'
       }`}
     >
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-400">
           {title}
         </h4>
-        {won && <Badge label="Prevailed" color="indigo" />}
+        {won && <Badge label="Prevailed" color="terra" />}
       </div>
 
       {args.length === 0 ? (
-        <p className="text-sm italic text-slate-500">No argument was made.</p>
+        <p className="text-sm italic text-bark-500">No argument was made.</p>
       ) : (
         <ul className="space-y-3">
           {args.map((argument) => (
             <li key={argument.claim}>
-              <p className="text-sm leading-relaxed text-slate-200">
+              <p className="text-sm leading-relaxed text-bark-200">
                 {argument.claim}
               </p>
               {/* Rule 1 of the build spec: every claim shows its grounding. */}
-              <p className="mt-1 border-l-2 border-slate-700 pl-2 text-xs italic text-slate-500">
+              <p className="mt-1 border-l-2 border-bark-700 pl-2 text-xs italic text-bark-500">
                 {argument.evidence}
               </p>
             </li>
@@ -65,7 +65,7 @@ function Side({ title, accent, args, closing, won }: SideProps) {
       )}
 
       {closing && (
-        <p className="mt-4 border-t border-slate-700 pt-3 text-sm font-medium text-slate-300">
+        <p className="mt-4 border-t border-bark-700 pt-3 text-sm font-medium text-bark-300">
           {closing}
         </p>
       )}
@@ -124,11 +124,11 @@ export default function DevilsAdvocate({ leadId, onError }: DevilsAdvocateProps)
       </div>
 
       {isLoading ? (
-        <div className="card flex justify-center px-5 py-10 text-slate-500">
+        <div className="card flex justify-center px-5 py-10 text-bark-500">
           <Spinner />
         </div>
       ) : !verdict ? (
-        <p className="card px-5 py-6 text-sm italic text-slate-500">
+        <p className="card px-5 py-6 text-sm italic text-bark-500">
           No debate held yet. Two agents will argue this lead — one to drop it,
           one to pursue it — and a third resolves the argument into a
           confidence score.
@@ -144,7 +144,7 @@ export default function DevilsAdvocate({ leadId, onError }: DevilsAdvocateProps)
                 Verdict: {prosecutionWon ? 'drop this lead' : 'pursue this lead'}
               </p>
               {verdict.decisive_argument && (
-                <p className="mt-0.5 text-xs text-slate-400">
+                <p className="mt-0.5 text-xs text-bark-400">
                   Decided on: {verdict.decisive_argument}
                 </p>
               )}
@@ -182,11 +182,11 @@ export default function DevilsAdvocate({ leadId, onError }: DevilsAdvocateProps)
           </div>
 
           {verdict.reasoning && (
-            <div className="rounded-lg border border-indigo-500/30 bg-indigo-950/30 p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
+            <div className="rounded-lg border border-terra-500/30 bg-terra-950/40 p-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-terra-400">
                 The judge
               </h4>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
+              <p className="mt-1.5 text-sm leading-relaxed text-bark-300">
                 {verdict.reasoning}
               </p>
             </div>

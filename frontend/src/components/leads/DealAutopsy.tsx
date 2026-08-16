@@ -36,10 +36,10 @@ interface StatProps {
 function Stat({ label, value, alarming = false }: StatProps) {
   return (
     <div>
-      <dt className="text-xs uppercase tracking-wide text-slate-500">{label}</dt>
+      <dt className="text-xs uppercase tracking-wide text-bark-500">{label}</dt>
       <dd
         className={`mt-0.5 text-sm font-semibold tabular-nums ${
-          alarming ? 'text-red-400' : 'text-slate-200'
+          alarming ? 'text-red-400' : 'text-bark-200'
         }`}
       >
         {value}
@@ -117,11 +117,11 @@ export default function DealAutopsy({ leadId, onError }: DealAutopsyProps) {
       </div>
 
       {isLoading ? (
-        <div className="card flex justify-center px-5 py-10 text-slate-500">
+        <div className="card flex justify-center px-5 py-10 text-bark-500">
           <Spinner />
         </div>
       ) : !autopsy ? (
-        <p className="card px-5 py-6 text-sm italic text-slate-500">
+        <p className="card px-5 py-6 text-sm italic text-bark-500">
           This deal is dead and has not been examined. An autopsy reads the
           whole thread and returns the cause of death, the misfire, and the
           correction — then feeds that back into the ICP.
@@ -155,20 +155,20 @@ export default function DealAutopsy({ leadId, onError }: DealAutopsyProps) {
             <dl className="mt-4 space-y-3">
               {autopsy.misfire && (
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">
+                  <dt className="text-xs uppercase tracking-wide text-bark-500">
                     The misfire
                   </dt>
-                  <dd className="mt-0.5 text-sm leading-relaxed text-slate-300">
+                  <dd className="mt-0.5 text-sm leading-relaxed text-bark-300">
                     {autopsy.misfire}
                   </dd>
                 </div>
               )}
               {autopsy.correction && (
                 <div>
-                  <dt className="text-xs uppercase tracking-wide text-slate-500">
+                  <dt className="text-xs uppercase tracking-wide text-bark-500">
                     The correction
                   </dt>
-                  <dd className="mt-0.5 text-sm leading-relaxed text-slate-300">
+                  <dd className="mt-0.5 text-sm leading-relaxed text-bark-300">
                     {autopsy.correction}
                   </dd>
                 </div>
@@ -191,7 +191,7 @@ export default function DealAutopsy({ leadId, onError }: DealAutopsyProps) {
               </dl>
             )}
 
-            <p className="mt-4 text-xs text-slate-500">
+            <p className="mt-4 text-xs text-bark-500">
               Examined {formatDate(autopsy.created_at)}
               {autopsy.confidence !== null &&
                 ` · ${autopsy.confidence}% diagnostic confidence`}
@@ -199,19 +199,19 @@ export default function DealAutopsy({ leadId, onError }: DealAutopsyProps) {
           </article>
 
           {autopsy.icp_adjustment && (
-            <div className="rounded-lg border border-indigo-500/30 bg-indigo-950/30 p-4">
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
+            <div className="rounded-lg border border-terra-500/30 bg-terra-950/40 p-4">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-terra-400">
                 Fed back into the ICP
               </h4>
-              <p className="mt-1.5 text-sm leading-relaxed text-slate-300">
+              <p className="mt-1.5 text-sm leading-relaxed text-bark-300">
                 {autopsy.icp_adjustment}
               </p>
               {insights && insights.total_autopsies > 0 && (
-                <p className="mt-3 border-t border-indigo-500/20 pt-3 text-xs text-slate-400">
+                <p className="mt-3 border-t border-terra-500/20 pt-3 text-xs text-bark-400">
                   Across {insights.total_autopsies} autops
                   {insights.total_autopsies === 1 ? 'y' : 'ies'}, the leading
                   misfire is{' '}
-                  <span className="font-semibold text-indigo-300">
+                  <span className="font-semibold text-terra-300">
                     {insights.top_misfire
                       ? MISFIRE_LABELS[insights.top_misfire] ?? insights.top_misfire
                       : 'not yet clear'}

@@ -86,10 +86,10 @@ export default function ExecutiveWhisper({
   }
 
   return (
-    <div className="mt-3 border-t border-slate-700 pt-3">
+    <div className="mt-3 border-t border-bark-700 pt-3">
       <div className="flex flex-wrap items-center gap-2">
         <span aria-hidden="true">🎤</span>
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-400">
           Executive whisper
         </h4>
 
@@ -98,12 +98,12 @@ export default function ExecutiveWhisper({
             type="button"
             onClick={() => setIsOpen((open) => !open)}
             aria-expanded={isOpen}
-            className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+            className="text-xs font-medium text-terra-400 hover:text-terra-300"
           >
             {isOpen ? 'Hide script' : 'Show script'}
           </button>
         ) : (
-          <span className="text-xs italic text-slate-500">Not written yet</span>
+          <span className="text-xs italic text-bark-500">Not written yet</span>
         )}
 
         <div className="ml-auto flex gap-2">
@@ -131,13 +131,13 @@ export default function ExecutiveWhisper({
       )}
 
       {whisper && isOpen && (
-        <div className="mt-3 animate-fade-in space-y-4 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+        <div className="mt-3 animate-fade-in space-y-4 rounded-lg border border-bark-700 bg-bark-900/60 p-4">
           {whisper.opening_line && (
-            <div className="rounded-lg border border-indigo-500/40 bg-indigo-950/40 p-3">
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
+            <div className="rounded-lg border border-terra-500/40 bg-terra-950/40 p-3">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-terra-400">
                 Open with this, word for word
               </h5>
-              <p className="mt-1.5 text-sm font-medium italic leading-relaxed text-indigo-100">
+              <p className="mt-1.5 text-sm font-medium italic leading-relaxed text-terra-100">
                 &ldquo;{whisper.opening_line}&rdquo;
               </p>
             </div>
@@ -145,14 +145,14 @@ export default function ExecutiveWhisper({
 
           {whisper.customer_problem && (
             <div>
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Their problem
               </h5>
-              <p className="mt-1 text-sm leading-relaxed text-slate-300">
+              <p className="mt-1 text-sm leading-relaxed text-bark-300">
                 {whisper.customer_problem}
               </p>
               {whisper.evidence && (
-                <p className="mt-1 border-l-2 border-slate-700 pl-2 text-xs italic text-slate-500">
+                <p className="mt-1 border-l-2 border-bark-700 pl-2 text-xs italic text-bark-500">
                   {whisper.evidence}
                 </p>
               )}
@@ -161,10 +161,10 @@ export default function ExecutiveWhisper({
 
           {whisper.recommended_service && (
             <div>
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 You are pitching
               </h5>
-              <p className="mt-1 text-sm text-indigo-300">
+              <p className="mt-1 text-sm text-terra-300">
                 {whisper.recommended_service}
               </p>
             </div>
@@ -172,14 +172,14 @@ export default function ExecutiveWhisper({
 
           {whisper.objections.length > 0 && (
             <div>
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 They will push back
               </h5>
               <ul className="mt-1.5 space-y-2.5">
                 {whisper.objections.map((item) => (
                   <li
                     key={item.objection}
-                    className="rounded-lg border border-slate-700 bg-slate-800/60 p-3"
+                    className="rounded-lg border border-bark-700 bg-bark-800/60 p-3"
                   >
                     <p className="text-sm text-yellow-200">
                       <Badge label="They say" color="yellow" className="mr-2" />
@@ -197,14 +197,14 @@ export default function ExecutiveWhisper({
 
           {whisper.key_points.length > 0 && (
             <div>
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Points to land
               </h5>
               <ul className="mt-1.5 space-y-1.5">
                 {whisper.key_points.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                    className="flex gap-2 text-sm leading-relaxed text-bark-300"
                   >
                     <span aria-hidden="true" className="text-green-500">
                       ✓
@@ -218,14 +218,14 @@ export default function ExecutiveWhisper({
 
           {whisper.watch_out_for.length > 0 && (
             <div>
-              <h5 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h5 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Watch out for
               </h5>
               <ul className="mt-1.5 space-y-1.5">
                 {whisper.watch_out_for.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                    className="flex gap-2 text-sm leading-relaxed text-bark-300"
                   >
                     <span aria-hidden="true" className="text-yellow-500">
                       !
