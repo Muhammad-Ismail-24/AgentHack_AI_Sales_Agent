@@ -92,7 +92,7 @@ export default function Meetings() {
         )}
 
         {isLoading ? (
-          <div className="flex justify-center py-24 text-slate-500">
+          <div className="flex justify-center py-24 text-bark-500">
             <Spinner size="lg" />
           </div>
         ) : meetings.length === 0 ? (
@@ -107,7 +107,7 @@ export default function Meetings() {
           <div className="space-y-8">
             {upcoming.length > 0 && (
               <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-bark-500">
                   Upcoming · {upcoming.length}
                 </h2>
                 <div className="space-y-4">{upcoming.map(render)}</div>
@@ -116,7 +116,7 @@ export default function Meetings() {
 
             {past.length > 0 && (
               <section>
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-bark-500">
                   Past · {past.length}
                 </h2>
                 <div className="space-y-4 opacity-70">{past.map(render)}</div>

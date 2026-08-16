@@ -21,10 +21,30 @@ cd frontend && npm install && npm run dev
 
 ## Design system
 
-Dark chrome: `bg-slate-900` page, `bg-slate-800` cards, `border-slate-700`,
-indigo-500 for primary actions. Score colours always come from
-`scoreToColor()` / `scoreToBadgeColor()` in `lib/utils.ts` — never hardcode a
-threshold, the bands must match everywhere.
+Warm terracotta, taken from the landing page (`src/styles/landing.css`) so the
+app and the marketing page read as one product. Two custom scales in
+`tailwind.config.ts` carry it:
+
+- **`bark`** — the neutral. Replaces Tailwind's slate at the same scale
+  positions: `bg-bark-900` page, `bg-bark-800` cards, `border-bark-700`,
+  `bark-400`/`bark-500` for muted text. `bark-900` is the landing's `--frame`.
+- **`terra`** — the accent. Replaces indigo. `terra-600` for primary actions
+  (it clears AA on white text; `terra-500` does not, so don't swap it for
+  label-bearing surfaces), `terra-400` for accent text and links.
+- **`honey`** and **`cream`** for highlights and body text.
+
+There is no slate or indigo left in `src/`. If you reach for one, you want
+`bark` or `terra` instead.
+
+Score colours always come from `scoreToColor()` / `scoreToBadgeColor()` in
+`lib/utils.ts` — never hardcode a threshold, the bands must match everywhere.
+`stageToColor()` is a deliberate heat ramp: cold `bark` for untouched leads,
+warming through `honey` and `terra` as they engage, emerald once won, red when
+dead. A new stage goes in its place on that gradient, not on a fresh hue.
+
+Shared `@layer components` classes in `index.css`: `.card`,
+`.card-interactive` (hover lift), `.input`, `.label`, `.text-ember` (the warm
+display gradient — display type only, it is unreadable small), `.rule-ember`.
 
 Shared atoms live in `components/ui/`: `Button`, `Badge`, `Modal`, `Spinner`,
 `Toast`, `ProgressBar`, `EmptyState`. Reach for these before writing new markup.

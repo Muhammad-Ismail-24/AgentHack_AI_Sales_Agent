@@ -13,7 +13,7 @@ interface MeetingCardProps {
 }
 
 const STATUS_COLORS = {
-  link_sent: 'blue',
+  link_sent: 'honey',
   confirmed: 'green',
   completed: 'gray',
   cancelled: 'red',
@@ -40,18 +40,18 @@ export default function MeetingCard({
           <button
             type="button"
             onClick={() => navigate(`/leads/${meeting.lead_id}`)}
-            className="truncate text-sm font-semibold text-white hover:text-indigo-400 hover:underline"
+            className="truncate text-sm font-semibold text-white hover:text-terra-400 hover:underline"
           >
             {companyName}
           </button>
           {contactName && (
-            <p className="mt-0.5 truncate text-xs text-slate-400">with {contactName}</p>
+            <p className="mt-0.5 truncate text-xs text-bark-400">with {contactName}</p>
           )}
 
-          <p className="mt-2 text-sm text-slate-300">
+          <p className="mt-2 text-sm text-bark-300">
             {formatDate(meeting.scheduled_at)}
             {meeting.scheduled_at && (
-              <span className="ml-2 text-xs text-slate-500">
+              <span className="ml-2 text-xs text-bark-500">
                 ({relativeTime(meeting.scheduled_at)})
               </span>
             )}

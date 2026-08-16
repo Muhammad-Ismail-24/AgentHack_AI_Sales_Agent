@@ -8,13 +8,17 @@ interface BadgeProps {
   title?: string;
 }
 
+// Warm-first. The only cool colours left in the app are the score bands'
+// lime/emerald, which have to stay readable as "good" — everything else
+// sits in the landing page's terracotta family.
 const COLORS: Record<BadgeColor, string> = {
-  green: 'bg-green-600 text-green-50',
-  yellow: 'bg-yellow-500 text-yellow-950',
-  red: 'bg-red-600 text-red-50',
-  blue: 'bg-blue-600 text-blue-50',
-  gray: 'bg-slate-600 text-slate-100',
-  indigo: 'bg-indigo-600 text-indigo-50',
+  green: 'bg-emerald-500 text-emerald-950',
+  lime: 'bg-lime-500 text-lime-950',
+  yellow: 'bg-amber-500 text-amber-950',
+  honey: 'bg-honey-400 text-bark-950',
+  red: 'bg-red-700 text-red-50',
+  gray: 'bg-bark-600 text-bark-100',
+  terra: 'bg-terra-600 text-terra-50',
 };
 
 export default function Badge({ label, color = 'gray', className, title }: BadgeProps) {

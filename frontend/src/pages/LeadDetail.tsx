@@ -68,7 +68,7 @@ export default function LeadDetail() {
       <>
         <TopBar title="Lead" isRunning={isRunning} />
         <PageWrapper>
-          <div className="flex justify-center py-24 text-slate-500">
+          <div className="flex justify-center py-24 text-bark-500">
             <Spinner size="lg" />
           </div>
         </PageWrapper>
@@ -119,7 +119,7 @@ export default function LeadDetail() {
                 Emails {emails.length > 0 && `(${emails.length})`}
               </h2>
               {emails.length === 0 ? (
-                <p className="card px-5 py-6 text-sm italic text-slate-500">
+                <p className="card px-5 py-6 text-sm italic text-bark-500">
                   No email has been written for this lead yet.
                 </p>
               ) : (
@@ -145,14 +145,14 @@ export default function LeadDetail() {
                   {replies.map((reply) => (
                     <div key={reply.id} className="card p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <span className="text-xs font-medium text-indigo-400">
+                        <span className="text-xs font-medium text-terra-400">
                           {reply.classification ?? 'Unclassified'}
                         </span>
-                        <span className="text-xs text-slate-500">
+                        <span className="text-xs text-bark-500">
                           {formatDate(reply.received_at)}
                         </span>
                       </div>
-                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-slate-300">
+                      <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-bark-300">
                         {reply.summary || reply.raw_body}
                       </p>
                     </div>
@@ -164,31 +164,31 @@ export default function LeadDetail() {
             <section>
               <h2 className="mb-3 text-sm font-semibold text-white">Timeline</h2>
               {events.length === 0 ? (
-                <p className="card px-5 py-6 text-sm italic text-slate-500">
+                <p className="card px-5 py-6 text-sm italic text-bark-500">
                   No stage changes recorded.
                 </p>
               ) : (
-                <ol className="card space-y-0 divide-y divide-slate-700">
+                <ol className="card space-y-0 divide-y divide-bark-700">
                   {events.map((event) => (
                     <li key={event.id} className="flex gap-3 px-5 py-3.5">
                       <span
                         aria-hidden="true"
-                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-indigo-500"
+                        className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-terra-500"
                       />
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm text-slate-200">
+                        <p className="text-sm text-bark-200">
                           {event.from_stage
                             ? `${event.from_stage} → ${event.to_stage}`
                             : `Entered ${event.to_stage}`}
                         </p>
                         {event.reason && (
-                          <p className="mt-0.5 text-xs text-slate-500">
+                          <p className="mt-0.5 text-xs text-bark-500">
                             {event.reason}
                           </p>
                         )}
                       </div>
                       <time
-                        className="shrink-0 text-xs text-slate-500"
+                        className="shrink-0 text-xs text-bark-500"
                         dateTime={event.created_at}
                       >
                         {formatDate(event.created_at)}
@@ -203,18 +203,18 @@ export default function LeadDetail() {
           {/* Right — 40% */}
           <div className="space-y-6 lg:col-span-2">
             <section className="card p-5">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h2 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Lead score
               </h2>
               <div className="mt-2">
                 <ScoreBadge score={lead.lead_score} size="lg" />
               </div>
               {lead.score_explanation && (
-                <p className="mt-3 text-sm leading-relaxed text-slate-400">
+                <p className="mt-3 text-sm leading-relaxed text-bark-400">
                   {lead.score_explanation}
                 </p>
               )}
-              <div className="mt-4 border-t border-slate-700 pt-4">
+              <div className="mt-4 border-t border-bark-700 pt-4">
                 <span
                   className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${stageToColor(
                     lead.pipeline_stage,
@@ -227,16 +227,16 @@ export default function LeadDetail() {
 
             {(lead.recommended_service || lead.pitch_angle) && (
               <section className="card p-5">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                   Recommended service
                 </h2>
                 {lead.recommended_service && (
-                  <p className="mt-2 text-sm font-medium text-indigo-300">
+                  <p className="mt-2 text-sm font-medium text-terra-300">
                     {lead.recommended_service}
                   </p>
                 )}
                 {lead.pitch_angle && (
-                  <p className="mt-2 text-sm leading-relaxed text-slate-400">
+                  <p className="mt-2 text-sm leading-relaxed text-bark-400">
                     {lead.pitch_angle}
                   </p>
                 )}
@@ -244,11 +244,11 @@ export default function LeadDetail() {
             )}
 
             <section className="card p-5">
-              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Contacts {contacts.length > 0 && `(${contacts.length})`}
               </h2>
               {contacts.length === 0 ? (
-                <p className="text-sm italic text-slate-500">
+                <p className="text-sm italic text-bark-500">
                   No decision maker found yet.
                 </p>
               ) : (
@@ -262,13 +262,13 @@ export default function LeadDetail() {
 
             {meetings.length > 0 && (
               <section className="card p-5">
-                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-bark-500">
                   Meetings
                 </h2>
                 <div className="space-y-3">
                   {meetings.map((meeting) => (
                     <div key={meeting.id} className="text-sm">
-                      <p className="text-slate-200">
+                      <p className="text-bark-200">
                         {formatDate(meeting.scheduled_at)}
                       </p>
                       {meeting.meeting_link && (
@@ -276,7 +276,7 @@ export default function LeadDetail() {
                           href={meeting.meeting_link}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="text-xs text-indigo-400 hover:underline"
+                          className="text-xs text-terra-400 hover:underline"
                         >
                           Join meeting ↗
                         </a>

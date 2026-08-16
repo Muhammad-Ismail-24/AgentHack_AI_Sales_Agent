@@ -13,7 +13,7 @@ interface EmailPreviewProps {
 
 const STATUS_COLORS = {
   draft: 'gray',
-  sent: 'blue',
+  sent: 'honey',
   replied: 'green',
   failed: 'red',
 } as const;
@@ -27,12 +27,12 @@ export default function EmailPreview({ email, onSend, isSending }: EmailPreviewP
 
   return (
     <article className="card overflow-hidden">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-700 px-5 py-4">
+      <div className="flex items-start justify-between gap-4 border-b border-bark-700 px-5 py-4">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-white">
             {email.subject || '(no subject)'}
           </p>
-          <p className="mt-0.5 text-xs text-slate-500">
+          <p className="mt-0.5 text-xs text-bark-500">
             {email.sent_at
               ? `Sent ${formatDate(email.sent_at)}`
               : `Drafted ${formatDate(email.created_at)}`}
@@ -43,18 +43,18 @@ export default function EmailPreview({ email, onSend, isSending }: EmailPreviewP
 
       <div className="px-5 py-4">
         {body ? (
-          <p className="whitespace-pre-line text-sm leading-relaxed text-slate-300">
+          <p className="whitespace-pre-line text-sm leading-relaxed text-bark-300">
             {shown}
           </p>
         ) : (
-          <p className="text-sm italic text-slate-500">This email has no body.</p>
+          <p className="text-sm italic text-bark-500">This email has no body.</p>
         )}
 
         {isLong && (
           <button
             type="button"
             onClick={() => setExpanded((open) => !open)}
-            className="mt-2 text-xs font-medium text-indigo-400 hover:text-indigo-300"
+            className="mt-2 text-xs font-medium text-terra-400 hover:text-terra-300"
           >
             {expanded ? 'Show less' : 'Show full email'}
           </button>
@@ -62,7 +62,7 @@ export default function EmailPreview({ email, onSend, isSending }: EmailPreviewP
       </div>
 
       {email.status === 'draft' && onSend && (
-        <div className="flex justify-end border-t border-slate-700 px-5 py-3">
+        <div className="flex justify-end border-t border-bark-700 px-5 py-3">
           <Button size="sm" loading={isSending} onClick={() => onSend(email)}>
             Send email
           </Button>

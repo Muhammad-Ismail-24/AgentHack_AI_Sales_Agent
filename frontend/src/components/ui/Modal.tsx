@@ -37,19 +37,19 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
       aria-label={title}
     >
       <div
-        className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-bark-950/70 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden="true"
       />
 
       <div className="card relative z-10 max-h-[85vh] w-full max-w-2xl animate-slide-up overflow-hidden">
-        <div className="flex items-start justify-between border-b border-slate-700 px-6 py-4">
+        <div className="flex items-start justify-between border-b border-bark-700 px-6 py-4">
           <h2 className="text-lg font-semibold text-white">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="-mr-2 -mt-1 rounded-lg px-2 py-1 text-2xl leading-none text-slate-400 hover:bg-slate-700 hover:text-white"
+            className="-mr-2 -mt-1 rounded-lg px-2 py-1 text-2xl leading-none text-bark-400 hover:bg-bark-700 hover:text-white"
           >
             ×
           </button>
@@ -58,7 +58,7 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
         <div className="max-h-[60vh] overflow-y-auto px-6 py-5">{children}</div>
 
         {footer && (
-          <div className="flex justify-end gap-2 border-t border-slate-700 px-6 py-4">
+          <div className="flex justify-end gap-2 border-t border-bark-700 px-6 py-4">
             {footer}
           </div>
         )}

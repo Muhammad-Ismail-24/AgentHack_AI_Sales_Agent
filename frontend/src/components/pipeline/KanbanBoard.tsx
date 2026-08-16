@@ -20,7 +20,7 @@ export default function KanbanBoard({ byStage }: KanbanBoardProps) {
       </div>
 
       <section>
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-bark-500">
           Rejected · {rejectedCount}
         </h2>
         <div className="flex gap-3 overflow-x-auto pb-3">

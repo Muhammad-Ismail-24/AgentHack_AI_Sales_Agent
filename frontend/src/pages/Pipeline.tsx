@@ -77,7 +77,7 @@ export default function Pipeline() {
                   ['Outreach', status.outreach_count],
                 ].map(([label, value]) => (
                   <div key={String(label)}>
-                    <dt className="text-xs uppercase tracking-wide text-slate-500">
+                    <dt className="text-xs uppercase tracking-wide text-bark-500">
                       {label}
                     </dt>
                     <dd className="mt-0.5 text-xl font-semibold tabular-nums text-white">
@@ -103,7 +103,7 @@ export default function Pipeline() {
         )}
 
         {isLoading ? (
-          <div className="flex justify-center py-24 text-slate-500">
+          <div className="flex justify-center py-24 text-bark-500">
             <Spinner size="lg" />
           </div>
         ) : leads.length === 0 ? (

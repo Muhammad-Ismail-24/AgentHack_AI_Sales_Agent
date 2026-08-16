@@ -20,11 +20,11 @@ export default function ReplyCard({ item }: ReplyCardProps) {
           <button
             type="button"
             onClick={() => navigate(`/leads/${item.lead_id}`)}
-            className="truncate text-sm font-semibold text-white hover:text-indigo-400 hover:underline"
+            className="truncate text-sm font-semibold text-white hover:text-terra-400 hover:underline"
           >
             {item.company_name}
           </button>
-          <p className="mt-0.5 truncate text-xs text-slate-400">
+          <p className="mt-0.5 truncate text-xs text-bark-400">
             {item.contact_name ?? 'Unknown contact'}
             {email.subject ? ` · re: ${email.subject}` : ''}
           </p>
@@ -33,7 +33,7 @@ export default function ReplyCard({ item }: ReplyCardProps) {
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <ClassificationBadge classification={reply.classification} />
           <time
-            className="text-xs text-slate-500"
+            className="text-xs text-bark-500"
             dateTime={reply.received_at}
             title={formatDate(reply.received_at)}
           >
@@ -43,10 +43,10 @@ export default function ReplyCard({ item }: ReplyCardProps) {
       </div>
 
       {reply.summary ? (
-        <p className="mt-3 text-sm leading-relaxed text-slate-300">{reply.summary}</p>
+        <p className="mt-3 text-sm leading-relaxed text-bark-300">{reply.summary}</p>
       ) : (
         reply.raw_body && (
-          <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-slate-400">
+          <p className="mt-3 line-clamp-3 whitespace-pre-line text-sm leading-relaxed text-bark-400">
             {reply.raw_body}
           </p>
         )
@@ -54,10 +54,10 @@ export default function ReplyCard({ item }: ReplyCardProps) {
 
       {reply.summary && reply.raw_body && (
         <details className="mt-3">
-          <summary className="cursor-pointer text-xs font-medium text-slate-500 hover:text-slate-300">
+          <summary className="cursor-pointer text-xs font-medium text-bark-500 hover:text-bark-300">
             Read the full reply
           </summary>
-          <p className="mt-2 whitespace-pre-line rounded-lg bg-slate-900/60 p-3 text-sm leading-relaxed text-slate-400">
+          <p className="mt-2 whitespace-pre-line rounded-lg bg-bark-900/60 p-3 text-sm leading-relaxed text-bark-400">
             {reply.raw_body}
           </p>
         </details>

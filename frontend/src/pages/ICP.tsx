@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import ICPForm, { type ICPFormValues } from '../components/onboarding/ICPForm';
+import OnboardingShell from '../components/onboarding/OnboardingShell';
 import Toast from '../components/ui/Toast';
 import { useToast } from '../hooks/useToast';
 import { defineICP, describeError, startPipeline } from '../lib/api';
@@ -53,41 +54,32 @@ export default function ICP() {
   }
 
   return (
-    <div className="flex min-h-full items-center justify-center px-6 py-12">
-      <div className="w-full max-w-xl">
-        <header className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-wide text-indigo-400">
-            Step 2 of 2
-          </p>
-          <h1 className="mt-1.5 text-2xl font-semibold text-white">
-            Who should the agent go after?
-          </h1>
-          <p className="mt-2 text-sm text-slate-400">
-            This becomes the ideal customer profile every lead is scored against.
-          </p>
-        </header>
-
-        <div className="card p-6">
-          <ICPForm
-            values={values}
-            onChange={setValues}
-            onSubmit={handleSubmit}
-            isSubmitting={isSubmitting}
-          />
-        </div>
-
+    <OnboardingShell
+      step={2}
+      title="Who should the agent go after?"
+      subtitle="This becomes the ideal customer profile every lead is scored against."
+      footer={
         <button
           type="button"
           onClick={() => navigate('/onboarding')}
-          className="mt-6 text-xs text-slate-500 hover:text-slate-300"
+          className="text-xs text-bark-500 transition-colors hover:text-terra-300"
         >
           ← Back to company info
         </button>
+      }
+    >
+      <div className="card p-6 sm:p-7">
+        <ICPForm
+          values={values}
+          onChange={setValues}
+          onSubmit={handleSubmit}
+          isSubmitting={isSubmitting}
+        />
       </div>
 
       {toast && (
         <Toast message={toast.message} type={toast.type} onClose={hideToast} />
       )}
-    </div>
+    </OnboardingShell>
   );
 }

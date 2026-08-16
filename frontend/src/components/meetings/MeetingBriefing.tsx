@@ -11,7 +11,7 @@ export default function MeetingBriefing({ briefing }: MeetingBriefingProps) {
 
   if (!briefing || Object.keys(briefing).length === 0) {
     return (
-      <p className="mt-3 text-xs italic text-slate-500">
+      <p className="mt-3 text-xs italic text-bark-500">
         No briefing generated for this meeting yet.
       </p>
     );
@@ -26,19 +26,19 @@ export default function MeetingBriefing({ briefing }: MeetingBriefingProps) {
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         aria-expanded={isOpen}
-        className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+        className="text-xs font-medium text-terra-400 hover:text-terra-300"
       >
         {isOpen ? 'Hide briefing' : 'Show pre-meeting briefing'}
       </button>
 
       {isOpen && (
-        <div className="mt-3 animate-fade-in space-y-4 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+        <div className="mt-3 animate-fade-in space-y-4 rounded-lg border border-bark-700 bg-bark-900/60 p-4">
           {briefing.customer_problem && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Their problem
               </h4>
-              <p className="mt-1 text-sm leading-relaxed text-slate-300">
+              <p className="mt-1 text-sm leading-relaxed text-bark-300">
                 {briefing.customer_problem}
               </p>
             </div>
@@ -46,10 +46,10 @@ export default function MeetingBriefing({ briefing }: MeetingBriefingProps) {
 
           {briefing.recommended_service && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Pitch
               </h4>
-              <p className="mt-1 text-sm text-indigo-300">
+              <p className="mt-1 text-sm text-terra-300">
                 {briefing.recommended_service}
               </p>
             </div>
@@ -57,14 +57,14 @@ export default function MeetingBriefing({ briefing }: MeetingBriefingProps) {
 
           {keyPoints.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Key points
               </h4>
               <ul className="mt-1.5 space-y-1.5">
                 {keyPoints.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                    className="flex gap-2 text-sm leading-relaxed text-bark-300"
                   >
                     <span aria-hidden="true" className="text-green-500">
                       ✓
@@ -78,14 +78,14 @@ export default function MeetingBriefing({ briefing }: MeetingBriefingProps) {
 
           {watchOut.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-bark-500">
                 Watch out for
               </h4>
               <ul className="mt-1.5 space-y-1.5">
                 {watchOut.map((point) => (
                   <li
                     key={point}
-                    className="flex gap-2 text-sm leading-relaxed text-slate-300"
+                    className="flex gap-2 text-sm leading-relaxed text-bark-300"
                   >
                     <span aria-hidden="true" className="text-yellow-500">
                       !

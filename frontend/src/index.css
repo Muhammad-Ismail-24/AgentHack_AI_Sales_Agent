@@ -10,9 +10,16 @@
   }
 
   body {
-    @apply bg-slate-900 text-slate-100;
+    @apply bg-bark-900 text-bark-100;
     font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto,
       Helvetica, Arial, sans-serif;
+    /* The same warm bloom the landing hero uses, dialled far down so dense
+       tables stay readable. Fixed so it does not slide under scrolling rows. */
+    background-image:
+      radial-gradient(900px 600px at 82% -8%, rgba(224, 137, 74, 0.13), transparent 60%),
+      radial-gradient(760px 620px at -6% 8%, rgba(200, 90, 42, 0.11), transparent 58%),
+      radial-gradient(900px 700px at 50% 108%, rgba(176, 108, 46, 0.09), transparent 60%);
+    background-attachment: fixed;
   }
 
   /* Dark scrollbars — the default light ones look broken on this chrome. */
@@ -21,32 +28,72 @@
     height: 10px;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-slate-900;
+    @apply bg-bark-900;
   }
   ::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-slate-700;
+    @apply rounded-full bg-bark-700;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-slate-600;
+    @apply bg-bark-600;
   }
 
   :focus-visible {
-    @apply outline-none ring-2 ring-indigo-500 ring-offset-2 ring-offset-slate-900;
+    @apply outline-none ring-2 ring-terra-500 ring-offset-2 ring-offset-bark-900;
   }
 }
 
 @layer components {
+  /* Cards sit slightly translucent so the page bloom reads through them,
+     which is what stops a screen of stacked cards looking like flat boxes. */
   .card {
-    @apply rounded-xl border border-slate-700 bg-slate-800 shadow-sm;
+    @apply rounded-xl border border-bark-700/80 bg-bark-800/90 shadow-lg
+           shadow-black/30 backdrop-blur-[2px];
+  }
+
+  /* Hover lift for cards that are themselves links or buttons. */
+  .card-interactive {
+    @apply card transition duration-150 hover:-translate-y-0.5
+           hover:border-terra-500/60 hover:shadow-xl hover:shadow-black/40;
   }
 
   .input {
-    @apply w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm
-           text-slate-100 placeholder:text-slate-500
-           focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500;
+    @apply w-full rounded-lg border border-bark-700 bg-bark-950/60 px-3 py-2 text-sm
+           text-bark-100 placeholder:text-bark-500 transition
+           focus:border-terra-500 focus:outline-none focus:ring-1 focus:ring-terra-500;
   }
 
   .label {
-    @apply mb-1.5 block text-sm font-medium text-slate-300;
+    @apply mb-1.5 block text-sm font-medium text-bark-300;
+  }
+
+  /* The native select arrow renders as a light-mode widget on this chrome,
+     so the control draws its own chevron and hides the platform one. */
+  .select {
+    @apply input cursor-pointer appearance-none bg-no-repeat pr-10;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23ae9679' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6.5 8 10.5 12 6.5'/%3E%3C/svg%3E");
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+  }
+
+  /* Options inherit the page background on most platforms but not all —
+     pin them so the open menu is never light-on-light. */
+  .select option {
+    @apply bg-bark-900 text-bark-100;
+  }
+
+  .field-hint {
+    @apply mt-1.5 text-xs leading-relaxed text-bark-500;
+  }
+
+  /* The landing page's signature warm gradient, for headline numbers and
+     the wordmark. Keep it for display type only — it is unreadable small. */
+  .text-ember {
+    @apply bg-gradient-to-br from-honey-300 via-terra-400 to-terra-600
+           bg-clip-text text-transparent;
+  }
+
+  /* Thin warm rule used to separate page header from content. */
+  .rule-ember {
+    @apply h-px border-0 bg-gradient-to-r from-terra-500/50 via-bark-700 to-transparent;
   }
 }

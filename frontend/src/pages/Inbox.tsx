@@ -35,7 +35,7 @@ export default function Inbox() {
         )}
 
         {isLoading ? (
-          <div className="flex justify-center py-24 text-slate-500">
+          <div className="flex justify-center py-24 text-bark-500">
             <Spinner size="lg" />
           </div>
         ) : replies.length === 0 ? (

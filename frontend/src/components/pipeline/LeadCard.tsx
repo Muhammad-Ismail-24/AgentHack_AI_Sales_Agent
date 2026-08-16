@@ -15,7 +15,7 @@ export default function LeadCard({ lead }: LeadCardProps) {
     <button
       type="button"
       onClick={() => navigate(`/leads/${lead.id}`)}
-      className="w-full rounded-lg border border-slate-700 bg-slate-800 p-3 text-left transition-colors hover:border-indigo-500 hover:bg-slate-700/50"
+      className="w-full rounded-lg border border-bark-700 bg-bark-800 p-3 text-left transition-colors hover:border-terra-500 hover:bg-bark-700/50"
     >
       <div className="flex items-start justify-between gap-2">
         <p className="min-w-0 flex-1 truncate text-sm font-medium text-white">
@@ -25,13 +25,13 @@ export default function LeadCard({ lead }: LeadCardProps) {
       </div>
 
       {(lead.industry || lead.location) && (
-        <p className="mt-1.5 truncate text-xs text-slate-400">
+        <p className="mt-1.5 truncate text-xs text-bark-400">
           {[lead.industry, lead.location].filter(Boolean).join(' · ')}
         </p>
       )}
 
       {lead.recommended_service && (
-        <p className="mt-2 truncate text-xs text-indigo-400">
+        <p className="mt-2 truncate text-xs text-terra-400">
           {truncate(lead.recommended_service, 40)}
         </p>
       )}

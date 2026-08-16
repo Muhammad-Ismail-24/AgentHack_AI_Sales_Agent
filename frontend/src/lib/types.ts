@@ -45,11 +45,12 @@ export type Classification =
 
 export type BadgeColor =
   | 'green'
+  | 'lime'
   | 'yellow'
+  | 'honey'
   | 'red'
-  | 'blue'
   | 'gray'
-  | 'indigo';
+  | 'terra';
 
 // ── Entities ─────────────────────────────────────────────────────────
 

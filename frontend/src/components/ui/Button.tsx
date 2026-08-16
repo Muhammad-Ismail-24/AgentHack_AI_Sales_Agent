@@ -15,13 +15,23 @@ interface ButtonProps {
   title?: string;
 }
 
+// The landing page's buttons sit on a hard shadow and press down on click;
+// these are the restrained dashboard version of that same gesture.
 const VARIANTS = {
-  primary: 'bg-indigo-600 text-white hover:bg-indigo-500 disabled:bg-indigo-900',
+  primary:
+    'bg-terra-600 text-white shadow-md shadow-terra-950/50 hover:bg-terra-500 ' +
+    'active:translate-y-px active:shadow-sm disabled:bg-terra-900 disabled:text-terra-300/60 ' +
+    'disabled:shadow-none disabled:translate-y-0',
   secondary:
-    'bg-slate-700 text-slate-100 hover:bg-slate-600 disabled:bg-slate-800 disabled:text-slate-500',
+    'bg-bark-700 text-bark-100 shadow-md shadow-black/30 hover:bg-bark-600 ' +
+    'active:translate-y-px active:shadow-sm disabled:bg-bark-800 disabled:text-bark-500 ' +
+    'disabled:shadow-none disabled:translate-y-0',
   ghost:
-    'bg-transparent text-slate-300 hover:bg-slate-800 hover:text-white disabled:text-slate-600',
-  danger: 'bg-red-600 text-white hover:bg-red-500 disabled:bg-red-900',
+    'bg-transparent text-bark-300 hover:bg-bark-800 hover:text-cream disabled:text-bark-600',
+  danger:
+    'bg-red-700 text-white shadow-md shadow-red-950/50 hover:bg-red-600 ' +
+    'active:translate-y-px active:shadow-sm disabled:bg-red-900 disabled:text-red-200/60 ' +
+    'disabled:shadow-none disabled:translate-y-0',
 } as const;
 
 const SIZES = {
@@ -49,7 +59,7 @@ export default function Button({
       disabled={disabled || loading}
       className={cx(
         'inline-flex items-center justify-center rounded-lg font-medium',
-        'transition-colors disabled:cursor-not-allowed',
+        'transition duration-150 disabled:cursor-not-allowed',
         VARIANTS[variant],
         SIZES[size],
         className,

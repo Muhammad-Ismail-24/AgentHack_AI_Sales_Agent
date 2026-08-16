@@ -15,14 +15,18 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ isRunning = false }: SidebarProps) {
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-slate-800 bg-slate-950">
+    <aside className="fixed inset-y-0 left-0 z-30 flex w-60 flex-col border-r border-bark-800 bg-bark-950">
       <div className="flex items-center gap-2.5 px-5 py-6">
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br
+                     from-terra-400 to-terra-600 text-sm font-bold text-white
+                     shadow-lg shadow-terra-950/60"
+        >
           A
         </span>
         <div className="leading-tight">
-          <p className="text-sm font-semibold text-white">AgentHack</p>
-          <p className="text-xs text-slate-500">AI Sales Agent</p>
+          <p className="text-ember text-sm font-semibold">AgentHack</p>
+          <p className="text-xs text-bark-500">AI Sales Agent</p>
         </div>
       </div>
 
@@ -35,8 +39,9 @@ export default function Sidebar({ isRunning = false }: SidebarProps) {
               cx(
                 'flex items-center gap-3 rounded-lg border-l-2 px-3 py-2.5 text-sm transition-colors',
                 isActive
-                  ? 'border-indigo-500 bg-slate-800 font-medium text-white'
-                  : 'border-transparent text-slate-400 hover:bg-slate-900 hover:text-slate-200',
+                  ? 'border-terra-500 bg-gradient-to-r from-terra-500/20 via-terra-500/5 ' +
+                    'to-transparent font-medium text-cream'
+                  : 'border-transparent text-bark-400 hover:bg-bark-800/60 hover:text-bark-200',
               )
             }
           >
@@ -48,16 +53,16 @@ export default function Sidebar({ isRunning = false }: SidebarProps) {
         ))}
       </nav>
 
-      <div className="border-t border-slate-800 px-5 py-4">
+      <div className="border-t border-bark-800 px-5 py-4">
         <div className="flex items-center gap-2">
           <span
             className={cx(
               'h-2 w-2 shrink-0 rounded-full',
-              isRunning ? 'animate-pulse bg-green-500' : 'bg-slate-600',
+              isRunning ? 'animate-pulse bg-green-500' : 'bg-bark-600',
             )}
             aria-hidden="true"
           />
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-bark-400">
             {isRunning ? 'Pipeline running' : 'Idle'}
           </span>
         </div>

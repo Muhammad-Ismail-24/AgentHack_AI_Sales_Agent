@@ -24,9 +24,9 @@ export default function ProgressBar({
     <div className={cx('w-full', className)}>
       {(label || safeTotal > 0) && (
         <div className="mb-1.5 flex items-baseline justify-between gap-4">
-          {label && <span className="text-sm text-slate-300">{label}</span>}
+          {label && <span className="text-sm text-bark-300">{label}</span>}
           {safeTotal > 0 && (
-            <span className="shrink-0 text-xs tabular-nums text-slate-400">
+            <span className="shrink-0 text-xs tabular-nums text-bark-400">
               {current} of {safeTotal}
             </span>
           )}
@@ -34,7 +34,7 @@ export default function ProgressBar({
       )}
 
       <div
-        className="h-2 w-full overflow-hidden rounded-full bg-slate-700"
+        className="h-2 w-full overflow-hidden rounded-full bg-bark-700"
         role="progressbar"
         aria-valuenow={indeterminate ? undefined : percent}
         aria-valuemin={0}
@@ -42,10 +42,10 @@ export default function ProgressBar({
         aria-label={label ?? 'Progress'}
       >
         {indeterminate ? (
-          <div className="h-full w-1/3 animate-pulse rounded-full bg-indigo-500" />
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-terra-500" />
         ) : (
           <div
-            className="h-full rounded-full bg-indigo-500 transition-all duration-500 ease-out"
+            className="h-full rounded-full bg-terra-500 transition-all duration-500 ease-out"
             style={{ width: `${percent}%` }}
           />
         )}

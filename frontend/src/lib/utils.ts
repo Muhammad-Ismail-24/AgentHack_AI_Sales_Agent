@@ -2,13 +2,19 @@
 
 import type { BadgeColor, Classification } from './types';
 
-/** Tailwind text colour for a lead score. */
+/** Tailwind text colour for a lead score.
+ *
+ * A warm heat ramp — rose, amber, lime, emerald. The 66-80 band used to be
+ * blue, which was the one colour in the app that fought the terracotta
+ * chrome; lime sits naturally between amber and emerald and keeps all four
+ * bands distinguishable from each other on a dark warm background.
+ */
 export function scoreToColor(score: number | null): string {
-  if (score === null || Number.isNaN(score)) return 'text-slate-400';
-  if (score <= 40) return 'text-red-500';
-  if (score <= 65) return 'text-yellow-500';
-  if (score <= 80) return 'text-blue-500';
-  return 'text-green-500';
+  if (score === null || Number.isNaN(score)) return 'text-bark-400';
+  if (score <= 40) return 'text-rose-400';
+  if (score <= 65) return 'text-amber-400';
+  if (score <= 80) return 'text-lime-400';
+  return 'text-emerald-400';
 }
 
 /** Badge colour name for a lead score — pairs with <Badge color={...} />. */
@@ -16,26 +22,33 @@ export function scoreToBadgeColor(score: number | null): BadgeColor {
   if (score === null || Number.isNaN(score)) return 'gray';
   if (score <= 40) return 'red';
   if (score <= 65) return 'yellow';
-  if (score <= 80) return 'blue';
+  if (score <= 80) return 'lime';
   return 'green';
 }
 
-/** Tailwind background classes for a stage chip. */
+/** Tailwind background classes for a stage chip.
+ *
+ * The stages read as a heat ramp: cold bark for a lead nobody has touched,
+ * warming through honey and terracotta as it engages, emerald once it is
+ * won, red when it is dead. That ordering is the point — a glance down the
+ * pipeline column should show progress as rising temperature, so keep any
+ * new stage in its place on the gradient rather than picking a fresh hue.
+ */
 export function stageToColor(stage: string): string {
   const map: Record<string, string> = {
-    Discovered: 'bg-slate-600 text-slate-100',
-    Potential: 'bg-slate-500 text-slate-50',
-    Researching: 'bg-blue-600 text-blue-50',
-    Qualified: 'bg-indigo-600 text-indigo-50',
-    Contacted: 'bg-violet-600 text-violet-50',
-    Interested: 'bg-green-600 text-green-50',
+    Discovered: 'bg-bark-600 text-bark-100',
+    Potential: 'bg-bark-500 text-bark-950',
+    Researching: 'bg-honey-600 text-bark-950',
+    Qualified: 'bg-honey-400 text-bark-950',
+    Contacted: 'bg-terra-600 text-terra-50',
+    Interested: 'bg-terra-400 text-bark-950',
     'Meeting Scheduled': 'bg-emerald-500 text-emerald-950',
-    Converted: 'bg-teal-500 text-teal-950',
-    'Not Qualified': 'bg-red-900 text-red-200',
-    'Not Interested': 'bg-red-800 text-red-100',
+    Converted: 'bg-emerald-400 text-emerald-950',
+    'Not Qualified': 'bg-red-950 text-red-300',
+    'Not Interested': 'bg-red-900 text-red-200',
     'Do Not Contact': 'bg-red-700 text-red-50',
   };
-  return map[stage] ?? 'bg-slate-700 text-slate-200';
+  return map[stage] ?? 'bg-bark-700 text-bark-200';
 }
 
 /** Badge colour for a reply classification. */
@@ -46,7 +59,7 @@ export function classificationToColor(
     Interested: 'green',
     'Pricing Objection': 'yellow',
     'Not Interested': 'red',
-    'Meeting Requested': 'indigo',
+    'Meeting Requested': 'terra',
     'Out of Office': 'gray',
     Unclear: 'gray',
   };

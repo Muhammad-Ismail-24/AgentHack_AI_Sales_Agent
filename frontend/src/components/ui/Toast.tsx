@@ -15,7 +15,7 @@ interface ToastProps {
 const STYLES: Record<ToastType, string> = {
   success: 'border-green-500/40 bg-green-950/90 text-green-100',
   error: 'border-red-500/40 bg-red-950/90 text-red-100',
-  info: 'border-indigo-500/40 bg-indigo-950/90 text-indigo-100',
+  info: 'border-terra-500/40 bg-terra-950/90 text-terra-100',
 };
 
 const ICONS: Record<ToastType, string> = {

@@ -12,7 +12,7 @@ export default function DashboardLayout() {
   const { isRunning } = usePipelineContext();
 
   return (
-    <div className="min-h-full bg-slate-900">
+    <div className="min-h-full bg-bark-900">
       <Sidebar isRunning={isRunning} />
       <div className="pl-60">
         <Outlet />

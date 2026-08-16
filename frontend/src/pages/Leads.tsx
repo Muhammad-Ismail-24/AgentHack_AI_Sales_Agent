@@ -99,7 +99,7 @@ export default function Leads() {
         )}
 
         {isLoading ? (
-          <div className="flex justify-center py-24 text-slate-500">
+          <div className="flex justify-center py-24 text-bark-500">
             <Spinner size="lg" />
           </div>
         ) : visible.length === 0 ? (
@@ -125,8 +125,8 @@ export default function Leads() {
           <div className="card overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-slate-700 bg-slate-900/60">
-                  <tr className="text-xs uppercase tracking-wide text-slate-500">
+                <thead className="border-b border-bark-700 bg-bark-900/60">
+                  <tr className="text-xs uppercase tracking-wide text-bark-500">
                     <th className="px-4 py-3 font-medium">Company</th>
                     <th className="px-4 py-3 font-medium">Industry</th>
                     <th className="px-4 py-3 font-medium">Location</th>
@@ -138,16 +138,16 @@ export default function Leads() {
                   </tr>
                 </thead>
 
-                <tbody className="divide-y divide-slate-800">
+                <tbody className="divide-y divide-bark-800">
                   {visible.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-slate-700/30">
+                    <tr key={lead.id} className="hover:bg-bark-700/30">
                       <td className="px-4 py-3 font-medium text-white">
                         {lead.company_name}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">
+                      <td className="px-4 py-3 text-bark-400">
                         {lead.industry ?? '—'}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">
+                      <td className="px-4 py-3 text-bark-400">
                         {lead.location ?? '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -162,10 +162,10 @@ export default function Leads() {
                           {lead.pipeline_stage}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-400">
+                      <td className="px-4 py-3 text-bark-400">
                         {truncate(lead.recommended_service, 28) || '—'}
                       </td>
-                      <td className="px-4 py-3 tabular-nums text-slate-400">
+                      <td className="px-4 py-3 tabular-nums text-bark-400">
                         {lead.contacts.length}
                       </td>
                       <td className="px-4 py-3 text-right">
