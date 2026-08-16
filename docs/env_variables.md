@@ -108,7 +108,7 @@ link. Leave the variable blank for real outreach.
 
 | Key | Required for | Where to get it |
 |---|---|---|
-| `CALENDAR_BOOKING_URL` | **the link put in every outreach email** | your real public booking page, copied exactly: Cal.com (`https://cal.com/you/30min`), Calendly, or a Google Calendar appointment schedule. The company name is appended as a `?name=` parameter. |
+| `CALENDAR_BOOKING_URL` | **the link put in every outreach email** | your real public booking page, copied exactly: Cal.com (`https://cal.com/you/30min`), Calendly, or a Google Calendar appointment schedule. Used exactly as given — nothing is appended. |
 | `CAL_API_KEY` | reserved for a future Cal.com API integration | cal.com → Settings → Developer → API Keys. Nothing reads it yet. |
 | `CALENDAR_BASE_URL` | legacy fallback, defaults to `https://cal.com/admin` | only used when `CALENDAR_BOOKING_URL` is blank, and it produces a `.../<company-slug>` URL that 404s unless that event type exists. Set `CALENDAR_BOOKING_URL` instead. |
 

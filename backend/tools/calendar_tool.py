@@ -1,7 +1,6 @@
 """The booking link put in outreach emails and sent when a reply asks for a call."""
 
 import re
-from urllib.parse import quote
 
 from config.settings import settings
 from utils.logger import logger
@@ -12,12 +11,13 @@ def generate_booking_link(lead_name: str) -> str:
 
     CALENDAR_BOOKING_URL is a real, existing booking page (Cal.com, Calendly,
     Google Calendar appointment schedule — anything with a public URL) and is
-    returned as-is, with the company name attached as a query parameter so the
-    booking form can prefill and the sales rep knows who booked. Query params
-    are safe: a scheduler that does not recognise one ignores it, whereas the
-    path must match a real event.
+    returned exactly as configured. Nothing is appended: Cal.com's `name`
+    parameter prefills the *attendee's* name, so passing the company there put
+    "Contact MIDTRANS | Official Logistics Channels" in the field meant for the
+    prospect's own name and made them clear it before booking. Which company
+    booked is already obvious from the email thread.
 
-    That last point is why the old behaviour is gone. It built
+    The per-lead path this replaced is why it matters. It built
     "{CALENDAR_BASE_URL}/{slugified-company}", inventing a distinct path per
     lead — cal.com/admin/contact-midtrans-official-logistics-channels — and no
     such event type exists, so every link in every email 404'd. A booking link
@@ -29,11 +29,7 @@ def generate_booking_link(lead_name: str) -> str:
     try:
         booking_url = (settings.CALENDAR_BOOKING_URL or "").strip()
         if booking_url:
-            company = (lead_name or "").strip()
-            if not company:
-                return booking_url
-            separator = "&" if "?" in booking_url else "?"
-            return f"{booking_url}{separator}name={quote(company)}"
+            return booking_url
 
         logger.warning(
             "CALENDAR_BOOKING_URL is not set — falling back to a generated "
