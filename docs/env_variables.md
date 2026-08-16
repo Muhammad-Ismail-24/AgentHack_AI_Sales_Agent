@@ -31,6 +31,32 @@ can actually reach before adding one to the chain.
 Without a Gemini key the comms LLM drops into mock mode (keyword-heuristic
 classification) and the agent pipeline cannot run.
 
+## LLM — Groq (intelligence layer only)
+
+| Key | Required for | Where to get it |
+|---|---|---|
+| `GROQ_API_KEY` | Devil's Advocate, Deal Autopsy, Executive Whisperer script | console.groq.com → API Keys (starts with `gsk_`) |
+
+Separate from the Gemini key on purpose. The Gemini free tier is capped per
+day *per model*, and the pipeline already walks a model chain to survive that
+— pointing interactive features at the same key would let one demo exhaust the
+budget a run depends on. The pipeline and reply classification stay on
+`GEMINI_API_KEY`.
+
+**Nothing reads these yet.** The three features are not implemented; the keys
+are here so configuration and docs stay in step with `.env.example`.
+
+## Text-to-speech — drive-time audio briefing (optional)
+
+| Key | Required for | Where to get it |
+|---|---|---|
+| `ELEVENLABS_API_KEY` | the WhatsApp voice note of the pre-call briefing | elevenlabs.io → Profile → API Key |
+| `ELEVENLABS_VOICE_ID` | which voice reads it | defaults to `21m00Tcm4TlvDq8ikWAM` (Rachel, a stock voice) |
+| `ELEVENLABS_MODEL_ID` | TTS model | defaults to `eleven_turbo_v2_5` |
+
+Without a key the pre-call script is still written and still sent as text —
+only the voice note is skipped. Also not read yet.
+
 ## Research and discovery
 
 | Key | Required for | Where to get it |

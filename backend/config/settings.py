@@ -79,6 +79,21 @@ class Settings(BaseSettings):
     # GeminiQuotaExhausted (0 = fail on the first 429).
     GEMINI_429_RETRIES: int = 2
 
+    # ── LLM: Groq — the intelligence layer only ──────────────────────
+    # Devil's Advocate, Deal Autopsy and the Executive Whisperer script.
+    # A separate key from Gemini on purpose: those features are
+    # interactive, and the Gemini free tier is capped per day per model —
+    # sharing one key would let a demo exhaust the pipeline's budget.
+    # Nothing reads these yet; the features are not built.
+    GROQ_API_KEY: str = ""
+
+    # ── Text-to-speech: drive-time audio briefing (optional) ─────────
+    # Without a key the pre-call script is still written and still sent as
+    # text; only the WhatsApp voice note is skipped. Not read yet either.
+    ELEVENLABS_API_KEY: str = ""
+    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"
+    ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"
+
     # ── Embeddings ───────────────────────────────────────────────────
     # text-embedding-004 was retired — it 404s on embedContent, which made
     # rag/embedder.py fail its health check on every boot and fall back to
