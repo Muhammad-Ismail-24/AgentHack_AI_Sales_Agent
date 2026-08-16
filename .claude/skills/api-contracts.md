@@ -143,6 +143,12 @@ Extras that sit beside the pipeline, not inside it. Every POST is triggered by
 a human click — the debate and the autopsy each spend LLM calls, and the audio
 one spends TTS credit, so none of them runs automatically.
 
+**These run on Groq** (`agents/groq_utils.py`, `GROQ_API_KEY`), not Gemini.
+The pipeline and the original comms features keep `agents/llm_utils.py` and
+`GEMINI_API_KEY` to themselves — two providers, two quotas, two rate limiters.
+The one exception is the RAG lookup inside the debate, which must stay on
+Gemini embeddings because that is what vectorised the Qdrant collections.
+
 | Method | Path | Request | Response |
 |---|---|---|---|
 | POST | `/intelligence/leads/{id}/devils-advocate` | — | `VerdictResponse` |

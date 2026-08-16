@@ -91,6 +91,12 @@ CAPABILITIES = [
         "the agents fall back to mock output",
     ),
     (
+        "LLM (Groq) — intelligence layer",
+        (("GROQ_API_KEY",),),
+        "Devil's Advocate, Deal Autopsy and the Executive Whisperer return "
+        "labelled mock output (the rest of the pipeline is unaffected)",
+    ),
+    (
         "contact enrichment",
         (("APOLLO_API_KEY",), ("HUNTER_API_KEY",)),
         "qualified leads have no real address to send outreach to",

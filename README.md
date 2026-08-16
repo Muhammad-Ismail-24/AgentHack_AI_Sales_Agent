@@ -34,7 +34,8 @@ Company PDF / text
 | Frontend | React 18 + Vite 5 + TypeScript + Tailwind CSS v3 |
 | Backend | Python 3.11 + FastAPI |
 | Agents | LangGraph (9 agents) |
-| LLM | Google Gemini |
+| LLM — pipeline & comms | Google Gemini |
+| LLM — intelligence layer | Groq |
 | RAG | LangChain + Qdrant |
 | Database | Cloud Firestore |
 | Short-term memory | Redis (optional) |
@@ -102,6 +103,17 @@ service-account JSON — compose mounts it read-only into the backend container.
 Three extras sit alongside the pipeline rather than inside it, so a normal run
 costs exactly what it did before them. All three are human-triggered from the
 dashboard — nothing here fires on its own.
+
+**They run on a second LLM provider.** The pipeline and the original comms
+features stay on Gemini (`agents/llm_utils.py`); these three run on Groq
+(`agents/groq_utils.py`), with its own key, its own rate limiter and its own
+model-fallback chain. That split is deliberate: a debate costs three calls,
+and on Gemini's free tier — 15 rpm, ~20/day per model — those calls used to
+come out of the budget lead processing needed. On separate keys, demoing the
+pipeline and demoing the intelligence layer no longer starve each other.
+
+Without `GROQ_API_KEY` all three degrade to **labelled** mock output rather
+than failing; the rest of the app is untouched either way.
 
 ### Devil's Advocate — `/leads/:id`
 

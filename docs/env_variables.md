@@ -31,31 +31,55 @@ can actually reach before adding one to the chain.
 Without a Gemini key the comms LLM drops into mock mode (keyword-heuristic
 classification) and the agent pipeline cannot run.
 
-## LLM — Groq (intelligence layer only)
+## LLM — Groq (the intelligence layer)
+
+The project runs **two** LLM providers, split by feature:
+
+| | Provider | Key | Drives |
+|---|---|---|---|
+| Original pipeline + comms | Google Gemini | `GEMINI_API_KEY` | ICP, filter, research, lead processing, reply classification, follow-up drafting |
+| Intelligence layer | Groq | `GROQ_API_KEY` | Devil's Advocate, Deal Autopsy, Executive Whisperer script |
 
 | Key | Required for | Where to get it |
 |---|---|---|
-| `GROQ_API_KEY` | Devil's Advocate, Deal Autopsy, Executive Whisperer script | console.groq.com → API Keys (starts with `gsk_`) |
+| `GROQ_API_KEY` | the three intelligence features | console.groq.com → API Keys. Starts with `gsk_`. |
+| `GROQ_MODEL` | optional override, defaults to `llama-3.3-70b-versatile` | — |
+| `GROQ_MODEL_FALLBACKS` | comma-separated models tried when one is decommissioned or rate limited | defaults to `llama-3.1-8b-instant,openai/gpt-oss-120b,gemma2-9b-it`; blank disables chaining |
+| `GROQ_API_URL` | optional | defaults to `https://api.groq.com/openai/v1` |
+| `GROQ_RPM` | requests/minute budget for the Groq key | default 25 — its own limiter, independent of `GEMINI_RPM` |
+| `GROQ_MAX_TOKENS` | optional | default 4096 |
+| `GROQ_429_RETRIES` | how many times a call waits out a 429 after the whole chain is spent | default 2 |
 
-Separate from the Gemini key on purpose. The Gemini free tier is capped per
-day *per model*, and the pipeline already walks a model chain to survive that
-— pointing interactive features at the same key would let one demo exhaust the
-budget a run depends on. The pipeline and reply classification stay on
-`GEMINI_API_KEY`.
+**Why two providers.** A Devil's Advocate debate costs three LLM calls. On the
+Gemini free tier — 15 requests/minute and roughly 20/day *per model* — running
+debates used to consume budget the pipeline needed for lead processing. Split
+across two keys they no longer compete, so you can demo the pipeline and the
+intelligence features in the same session.
 
-**Nothing reads these yet.** The three features are not implemented; the keys
-are here so configuration and docs stay in step with `.env.example`.
+Groq is also fast enough that a three-call debate resolves in a couple of
+seconds, which matters when it has to happen on camera.
 
-## Text-to-speech — drive-time audio briefing (optional)
+**Model names change.** Groq decommissions models briskly — a dead one fails
+with `model_decommissioned`. `groq_utils.py` walks `GROQ_MODEL_FALLBACKS` on
+that, on a 404, and on a 429 rather than dying. If every entry fails, check
+the current list at https://console.groq.com/docs/models and update the two
+settings.
 
-| Key | Required for | Where to get it |
-|---|---|---|
-| `ELEVENLABS_API_KEY` | the WhatsApp voice note of the pre-call briefing | elevenlabs.io → Profile → API Key |
-| `ELEVENLABS_VOICE_ID` | which voice reads it | defaults to `21m00Tcm4TlvDq8ikWAM` (Rachel, a stock voice) |
-| `ELEVENLABS_MODEL_ID` | TTS model | defaults to `eleven_turbo_v2_5` |
+**Watch tokens, not just requests.** Groq's free tier limits tokens per minute
+as well as requests, and it is usually the token ceiling that bites first — a
+debate sends the research payload three times. If you hit 429s, lower
+`GROQ_MAX_TOKENS` before lowering `GROQ_RPM`.
 
-Without a key the pre-call script is still written and still sent as text —
-only the voice note is skipped. Also not read yet.
+Without a Groq key the three intelligence features return **labelled** mock
+output — every string is prefixed `(mock)` and the debate states in its
+reasoning that no real debate was held, so a demo can never pass a keyless
+fallback off as real reasoning. The rest of the app is unaffected.
+
+**One thing stays on Gemini regardless:** the RAG retrieval inside Devil's
+Advocate. The Qdrant collections were vectorised with
+`GEMINI_EMBEDDING_MODEL`, so they must be queried with the same embedding
+model — a different provider's vectors have a different dimension and
+meaning. Retrieval provider is fixed by whatever built the index.
 
 ## Research and discovery
 

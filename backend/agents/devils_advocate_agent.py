@@ -10,14 +10,17 @@ time, from `POST /intelligence/leads/{id}/devils-advocate`. Keeping it out of
 the graph means a normal run costs exactly what it did before.
 
 Three LLM calls per debate, but prosecution and defence are independent, so
-they go out together and only the judge waits. The RPM limiter in llm_utils
-still serialises them against every other caller sharing the key.
+they go out together and only the judge waits.
+
+Runs on **Groq** (agents/groq_utils.py), not Gemini. The pipeline keeps the
+Gemini key to itself, so a three-call debate no longer competes with lead
+processing for the same per-minute and per-day budget.
 """
 
 import asyncio
 import json
 
-from agents.llm_utils import call_llm_json
+from agents.groq_utils import call_llm_json
 from config.prompts import (
     DEVILS_ADVOCATE_DEFENDER_PROMPT,
     DEVILS_ADVOCATE_JUDGE_PROMPT,
@@ -82,6 +85,12 @@ def _evidence_floor(lead: dict) -> str:
 def _company_knowledge(session_id: str) -> str:
     """What we sell, from the session's RAG collection.
 
+    This stays on **Gemini embeddings** even though the debate itself runs on
+    Groq, and it must: the Qdrant collections were written with
+    GEMINI_EMBEDDING_MODEL vectors, so querying them with embeddings from a
+    different provider would compare vectors of a different dimension and
+    meaning. Retrieval provider is fixed by whatever built the index.
+
     Imported lazily: the retriever pulls in the whole langchain/Qdrant stack,
     and a debate is still worth holding on ICP fit alone if the vector store
     is unreachable. The pipeline agents import it eagerly because they cannot
@@ -132,7 +141,7 @@ def _closing(result: object) -> str:
 
 
 def _mock_debate(lead: dict, floor: str) -> dict:
-    """Used when no Gemini key is configured, so the demo still renders.
+    """Used when no Groq key is configured, so the demo still renders.
 
     Deliberately labelled in the text — a judge watching the screen should
     never mistake a keyless fallback for a real debate.
@@ -157,7 +166,7 @@ def _mock_debate(lead: dict, floor: str) -> dict:
         "defense_closing": "(mock) No configured LLM — defence not argued.",
         "winner": "defence" if (score or 0) >= settings.MIN_QUALIFICATION_SCORE else "prosecution",
         "confidence": score if score is not None else 50,
-        "reasoning": "(mock) No Gemini API key configured, so this verdict "
+        "reasoning": "(mock) No Groq API key configured, so this verdict "
                      "mirrors the qualification score rather than a real debate.",
         "decisive_argument": "(mock) none — no debate was held.",
         "evidence_strength": floor,
@@ -175,8 +184,8 @@ async def run(lead: dict) -> dict:
     floor = _evidence_floor(lead)
     company_name = lead.get("company_name") or "this company"
 
-    if not settings.google_api_key:
-        log.warning("devils_advocate: no Gemini key — returning the mock debate")
+    if not settings.GROQ_API_KEY:
+        log.warning("devils_advocate: no Groq key — returning the mock debate")
         return _mock_debate(lead, floor)
 
     try:

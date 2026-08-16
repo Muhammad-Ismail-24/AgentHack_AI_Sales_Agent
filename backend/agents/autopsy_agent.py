@@ -12,13 +12,14 @@ measured "71h average reply latency against their 4h" is the kind of finding
 the model would otherwise invent.
 
 Runs on demand from `POST /intelligence/leads/{id}/autopsy`, never inside the
-pipeline.
+pipeline, and on **Groq** (agents/groq_utils.py) rather than Gemini — the
+pipeline keeps its own key and quota.
 """
 
 import json
 from datetime import datetime, timezone
 
-from agents.llm_utils import call_llm_json
+from agents.groq_utils import call_llm_json
 from config.prompts import DEAL_AUTOPSY_PROMPT
 from config.settings import settings
 from db.models import MISFIRE_TAGS
@@ -163,9 +164,9 @@ def _mock_autopsy(lead: dict, stats: dict) -> dict:
             f"{stats['emails_sent']} email(s) sent, "
             f"{stats['replies_received']} repl(y/ies) received"
         ),
-        "misfire": "(mock) No Gemini API key configured, so no diagnosis was made.",
+        "misfire": "(mock) No Groq API key configured, so no diagnosis was made.",
         "misfire_tag": tag,
-        "correction": "(mock) Set GEMINI_API_KEY to get a real post-mortem.",
+        "correction": "(mock) Set GROQ_API_KEY to get a real post-mortem.",
         "icp_adjustment": "(mock) none",
         "confidence": 0,
     }
@@ -190,8 +191,8 @@ async def run(
         (c for c in contacts if c.get("is_primary")), contacts[0] if contacts else {}
     )
 
-    if not settings.google_api_key:
-        log.warning("autopsy: no Gemini key — returning the mock post-mortem")
+    if not settings.GROQ_API_KEY:
+        log.warning("autopsy: no Groq key — returning the mock post-mortem")
         findings = _mock_autopsy(lead, stats)
     else:
         try:

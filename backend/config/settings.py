@@ -79,20 +79,42 @@ class Settings(BaseSettings):
     # GeminiQuotaExhausted (0 = fail on the first 429).
     GEMINI_429_RETRIES: int = 2
 
-    # ── LLM: Groq — the intelligence layer only ──────────────────────
-    # Devil's Advocate, Deal Autopsy and the Executive Whisperer script.
-    # A separate key from Gemini on purpose: those features are
-    # interactive, and the Gemini free tier is capped per day per model —
-    # sharing one key would let a demo exhaust the pipeline's budget.
-    # Nothing reads these yet; the features are not built.
+    # ── LLM (Groq) — the intelligence layer only ─────────────────────
+    # Devil's Advocate, Deal Autopsy and the Executive Whisperer script run
+    # on Groq; the original pipeline and comms calls stay on Gemini above.
+    # Two providers means two quotas, so holding a three-call debate no
+    # longer eats budget the pipeline needs.
     GROQ_API_KEY: str = ""
+    GROQ_API_URL: str = "https://api.groq.com/openai/v1"
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    # Tried in order when a model is decommissioned or rate limited, exactly
+    # like GEMINI_MODEL_FALLBACKS. Groq retires models briskly — a dead one
+    # 400s with `model_decommissioned`. Check the current list at
+    # https://console.groq.com/docs/models. Comma-separated; blank disables
+    # chaining. The smaller models are listed after the large one because
+    # their per-minute token budgets are far more generous.
+    GROQ_MODEL_FALLBACKS: str = (
+        "llama-3.1-8b-instant,openai/gpt-oss-120b,gemma2-9b-it"
+    )
+    GROQ_MAX_TOKENS: int = 4096
+    # Groq's free tier allows roughly 30 requests/minute on the larger models.
+    # The real ceiling is usually tokens-per-minute rather than requests, so
+    # lower GROQ_MAX_TOKENS before lowering this if you start seeing 429s.
+    GROQ_RPM: int = 25
+    # How many times a call waits out a 429 once every model in the chain is
+    # spent (0 = fail on the first 429).
+    GROQ_429_RETRIES: int = 2
 
-    # ── Text-to-speech: drive-time audio briefing (optional) ─────────
-    # Without a key the pre-call script is still written and still sent as
-    # text; only the WhatsApp voice note is skipped. Not read yet either.
-    ELEVENLABS_API_KEY: str = ""
-    ELEVENLABS_VOICE_ID: str = "21m00Tcm4TlvDq8ikWAM"
-    ELEVENLABS_MODEL_ID: str = "eleven_turbo_v2_5"
+    @property
+    def groq_model_chain(self) -> list[str]:
+        """Every Groq model to try, in order, deduplicated and blank-free."""
+        names = [self.GROQ_MODEL] + self.GROQ_MODEL_FALLBACKS.split(",")
+        chain: list[str] = []
+        for name in names:
+            cleaned = (name or "").strip()
+            if cleaned and cleaned not in chain:
+                chain.append(cleaned)
+        return chain
 
     # ── Embeddings ───────────────────────────────────────────────────
     # text-embedding-004 was retired — it 404s on embedContent, which made
@@ -268,7 +290,10 @@ class Settings(BaseSettings):
             return url
         return f"https://{url}"
 
-    @field_validator("GEMINI_MODEL", "CALENDAR_BASE_URL", mode="before")
+    @field_validator(
+        "GEMINI_MODEL", "CALENDAR_BASE_URL", "GROQ_MODEL", "GROQ_API_URL",
+        mode="before",
+    )
     @classmethod
     def _fall_back_when_blank(cls, value: object, info) -> object:
         """An empty value in the env file must not beat the default."""

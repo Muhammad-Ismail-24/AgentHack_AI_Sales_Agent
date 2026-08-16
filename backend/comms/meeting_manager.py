@@ -15,7 +15,7 @@ merge_notes.md), kept only as a defensive guard rather than an assumed gap.
 import re
 
 from comms._deps import crud, get_logger
-from comms._llm import complete_json
+from comms._llm import complete_json_groq
 from comms.email_sender import EmailSender
 from config.prompts import MEETING_BRIEFING_PROMPT
 from tools import tts_generator
@@ -187,6 +187,9 @@ class MeetingManager:
         are still produced, so anything already reading a briefing keeps
         working unchanged.
 
+        Runs on Groq. Needs GROQ_API_KEY; without it the mock briefing is
+        stored and the T-30min reminder still fires with it.
+
         Returns None only when the meeting or its lead is missing.
         """
         meeting = crud.get_meeting(meeting_id)
@@ -234,7 +237,11 @@ class MeetingManager:
             email_thread_summary=email_thread_summary,
             reply_summary=reply_summary,
         )
-        whisper = await complete_json(
+        # Groq, not Gemini — the Whisperer is part of the extra-credit layer.
+        # The rest of this module (meeting confirmation email, WhatsApp) makes
+        # no LLM call at all, and the reply classifier and follow-up writer in
+        # their own modules still go through complete_json() on Gemini.
+        whisper = await complete_json_groq(
             system=MEETING_BRIEFING_PROMPT["system"],
             user=user,
             max_tokens=1024,

@@ -89,9 +89,36 @@ comms   →  crud
 a try/except, and `main.py` registers each router the same way. Keep that
 pattern: one broken module must never stop the app from booting.
 
-## LLM
+## LLM — two providers, split by feature
 
-One Gemini client, in `agents/llm_utils.py`. The comms layer's
-`comms/_llm.py` delegates to it — do not add a second provider client. With no
-`GEMINI_API_KEY`/`GOOGLE_API_KEY` set, `complete_json()` returns its caller's
-`mock_fallback()` so tests and demos still run.
+**Exactly two clients. One per provider. Do not add a third.**
+
+| Client | Provider | Key | Used by |
+|---|---|---|---|
+| `agents/llm_utils.py` | Google Gemini | `GEMINI_API_KEY` / `GOOGLE_API_KEY` | the LangGraph pipeline, reply classification, follow-up drafting |
+| `agents/groq_utils.py` | Groq | `GROQ_API_KEY` | the intelligence layer only — Devil's Advocate, Deal Autopsy, Executive Whisperer |
+
+The comms layer exposes one function per provider in `comms/_llm.py`:
+`complete_json()` (Gemini) and `complete_json_groq()` (Groq). A caller picks
+its provider by picking its function — there is no provider argument, on
+purpose, so a change to one path cannot silently reroute the other.
+
+The split exists because a Devil's Advocate debate costs three calls and the
+Gemini free tier caps requests per minute *and* per day per model. Separate
+keys mean the extras cannot starve the pipeline. Each client has its own rate
+limiter and its own model-fallback chain; neither shares state with the other.
+
+**Adding a feature?** Pipeline or original comms work → `llm_utils`.
+Intelligence layer → `groq_utils`. If a new feature fits neither, decide which
+provider owns it before writing the call, and say so in the module docstring.
+
+With that provider's key missing, both `complete_json*` functions return the
+caller's `mock_fallback()` so tests and demos still run. Mock output in the
+intelligence layer is prefixed `(mock)` — keep it that way; a demo must never
+be able to pass a keyless fallback off as real model output.
+
+**Embeddings are not part of this split.** `rag/embedder.py` stays on Gemini
+(or the local FastEmbed fallback) regardless of which client made the request:
+the Qdrant collections are vectorised with `GEMINI_EMBEDDING_MODEL`, and
+querying them with another provider's embeddings compares vectors of a
+different dimension and meaning.
